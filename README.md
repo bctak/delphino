@@ -15,7 +15,7 @@ This project extracts libc functions using Clang and libc symbols, identifies th
 #### Run static analysis program
 
 ```
-cd /C_static_analysis/src/
+cd C_static_analysis/src/
 python3 static_analysis.py [file name]
 ```
 
