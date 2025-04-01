@@ -1,4 +1,7 @@
-import time
+import subprocess
+import argparse
+import json
+import re
 
 def build_call_graph(filename):
     call_graph = {}
@@ -22,33 +25,6 @@ def build_call_graph(filename):
             else:
                 call_graph[caller] = set([callee])
     return call_graph
-
-def print_sorted_call_graph_by_callee_count(call_graph):
-    print("\n[리스트 길이 기준 오름차순 출력]")
-    for caller, callees in sorted(call_graph.items(), key=lambda item: len(item[1])):
-        print(f"{caller} -> {callees} (총 {len(callees)}개)")
-
-def replace_single_callee_callers_recursive(call_graph):
-    # 1. callee가 1개뿐인 caller들을 찾기
-    single_callee_map = {k: v[0] for k, v in call_graph.items() if len(v) == 1}
-
-    # 2. 다단계 치환을 위한 재귀 함수
-    def resolve_final_callee(func):
-        seen = set()
-        while func in single_callee_map and func not in seen:
-            seen.add(func)
-            func = single_callee_map[func]
-        return func
-
-    # 3. 전체 그래프 순회하며 치환
-    updated_graph = {}
-    for caller, callees in call_graph.items():
-        new_callees = []
-        for callee in callees:
-            new_callees.append(resolve_final_callee(callee))
-        updated_graph[caller] = new_callees
-
-    return updated_graph
 
 def replace_callee_caller(call_graph):
     transform = 1
@@ -97,21 +73,56 @@ def replace_callee_caller(call_graph):
      
     return temp_call_graph
                     
+def get_syscall_map():
+    syscall_map = {}
+    try:
+        output = subprocess.check_output(['ausyscall', '--dump'], text=True)
+        for line in output.strip().split('\n'):
+            if line.strip() and line[0].isdigit():
+                number, name = line.strip().split(None, 1)
+                syscall_map[int(number)] = name
+    except Exception as e:
+        print(f"Error reading syscall map: {e}")
+    return syscall_map
 
-# 사용 예시
+def extract_syscall_info(syscall_str, syscall_map):
+    match = re.match(r'syscall\((\d+)\)', syscall_str)
+    if match:
+        num = int(match.group(1))
+        name = syscall_map.get(num, 'unknown')
+        return {"number": num, "name": name}
+    return None
+
 if __name__ == "__main__":
-    filename = "glibc.2.23.callgraph"
+    parser = argparse.ArgumentParser(description="Analyzing the glibc function call graph.")
+    parser.add_argument("filename", help="Call graph filename (e.g., glibc.2.23.callgraph)")
+    parser.add_argument("funcname", help="Name of the glibc function to analyze")
+
+    args = parser.parse_args()
+    filename = args.filename
+    initial_func = args.funcname
+
     graph = build_call_graph(filename)
-
     syscall_graph = replace_callee_caller(graph)
+    syscall_map = get_syscall_map()
 
-    while True:
-        key = input("함수 이름을 입력하세요 (종료하려면 'exit'): ").strip()
-        if key == 'exit':
-            break
-        if key in syscall_graph:
-            syscall_list = list(syscall_graph[key])
-            syscall_list.sort()
-            print(f"{key}가 호출하는 함수들: {syscall_list}","길이 "+str(len(syscall_graph[key])))
-        else:
-            print(f"{key}는 호출 정보를 가지고 있지 않습니다.")
+    output = {}
+
+    if initial_func in syscall_graph:
+        formatted_list = [
+            extract_syscall_info(s, syscall_map)
+            for s in syscall_graph[initial_func]
+        ]
+        formatted_list = [entry for entry in formatted_list if entry is not None]
+        formatted_list.sort(key=lambda x: x['number'])
+        formatted_list = [entry for entry in formatted_list if entry is not None]
+        output[initial_func] = formatted_list
+    else:
+        output[initial_func] = []
+
+    # JSON 파일로 저장
+    json_filename = f"{initial_func}.json"
+    with open(json_filename, "w") as json_file:
+        json.dump(output, json_file, indent=2)
+
+    print(f"Saved syscall info to {json_filename}")
