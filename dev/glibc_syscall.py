@@ -118,6 +118,8 @@ if __name__ == "__main__":
         formatted_list = [entry for entry in formatted_list if entry is not None]
         output[initial_func] = formatted_list
     else:
+        print(f"{initial_func} does not exist")
+        exit(1)
         output[initial_func] = []
 
     # JSON 파일로 저장
