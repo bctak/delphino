@@ -9,9 +9,12 @@ def get_glibc_function_list():
     functions = []
     for line in lines:
         parts = line.split()
-        if len(parts) == 3 and parts[1] in ['T', 'W']:
-            functions.append(parts[2])
-    return sorted(set(functions))
+        if parts:  # 빈 줄 제외
+            name = parts[-1]  # 맨 끝이 기호 이름임
+            functions.append(name)
+    functions = list(set(functions))
+    functions.sort()
+    return functions
 
 def build_call_graph(filename):
     call_graph = {}
@@ -113,13 +116,24 @@ def extract_syscall_info(syscall_str, syscall_map):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyzing the glibc function call graph.")
-    parser.add_argument("filename", help="Call graph filename (e.g., glibc.2.23.callgraph)")
-    parser.add_argument("funcname", help="Name of the glibc function to analyze")
+    parser.add_argument("filename", nargs="?", help="Call graph filename (e.g., glibc.2.23.callgraph)")
+    parser.add_argument("funcname", nargs="?", help="Name of the glibc function to analyze")
     parser.add_argument("-o", "--output", choices=["json", "plain"], default="plain",
                         help="Output format: 'json' or 'plain' (default: plain)")
-    parser.add_argument("-l", "--list", action="store_true", help="List all functions in the call graph and glibc")
+    parser.add_argument("-l", "--list", action="store_true", help="List glibc functions and exit")
 
     args = parser.parse_args()
+    
+    if args.list:
+        print("[glibc 함수 목록]")
+        glibc_funcs = get_glibc_function_list()
+        for func in glibc_funcs:
+            print(func)
+        exit(0)
+
+    if not args.filename or not args.funcname:
+        print("Error: filename and funcname must be specified unless -l is used.")
+        exit(1)
 
     filename = args.filename
     initial_func = args.funcname
@@ -133,7 +147,6 @@ if __name__ == "__main__":
         print(f"{initial_func} does not exist")
         exit(1)
 
-    # 시스템콜 정보 가공
     formatted_list = [
         extract_syscall_info(s, syscall_map)
         for s in syscall_graph[initial_func]
@@ -158,20 +171,9 @@ if __name__ == "__main__":
         json_str += f'  "syscall_number": {syscall_numbers},\n'
         json_str += f'  "syscall_name": {json.dumps(syscall_names)}\n'
         json_str += '}'
-
+        
         print(json_str)
 
     else:  # plain 형식
         for entry in formatted_list:
             print(f"{initial_func}: {entry['number']} :{entry['name']}")
-
-    if args.list:
-        if not args.filename:
-            print("Error: You must specify the call graph filename when using -l")
-            exit(1)
-
-        print("\nlist of all functions")
-        glibc_funcs = get_glibc_function_list()
-        for func in glibc_funcs:
-            print(func)
-        exit(0)
