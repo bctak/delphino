@@ -31,6 +31,8 @@ def build_call_graph(filename):
                 continue
             if caller in call_graph:
                 #if callee not in call_graph[caller]:   //중복 없게 그냥 진행
+                if 'syscall' in callee and '(' in callee and ')' in callee:
+                    callee = callee.replace(" ","")
                 call_graph[caller].add(callee)
             else:
                 call_graph[caller] = set([callee])
