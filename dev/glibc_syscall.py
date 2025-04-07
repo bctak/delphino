@@ -159,10 +159,7 @@ if __name__ == "__main__":
         json_str += f'  "syscall_name": {json.dumps(syscall_names)}\n'
         json_str += '}'
 
-        json_filename = f"{initial_func}.json"
-        with open(json_filename, "w") as json_file:
-            json_file.write(json_str)
-        print(f"Saved syscall info to {json_filename}")
+        print(json_str)
 
     else:  # plain 형식
         for entry in formatted_list:
