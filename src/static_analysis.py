@@ -235,6 +235,8 @@ def extract_if_depth(file_path):
         if_level_else_if_list = [] #else if문들을 wide하게 표현하기 위해 사용되는 리스트
         if_level_else_if_list.append(0)
         if_level_else_if_list_not_append = 0
+        if_level_not_plus = 0
+        if_new_check = 0
 
         conditional_operator_first_ongoing = 0
         conditional_operator_ongoing = 0
@@ -245,6 +247,32 @@ def extract_if_depth(file_path):
         conditional_if_level_plus = 0
 
         if_level_else_if_list_not_append_conditional = 0
+
+        #반복문을 위한 변수들
+
+        while_new_check = 0
+        while_level = 0
+        while_depth_list = []
+        while_depth = 0
+        while_ongoing = 0
+        while_ongoing_depth = []
+        while_first_ongoing = 0
+
+        #while_new_check = 0
+        #while_level = 0
+        for_depth_list = []
+        for_depth = 0
+        for_ongoing = 0
+        for_ongoing_depth = []
+        for_first_ongoing = 0
+
+        do_while_new_check = 0
+        do_while_level = 0
+        do_while_ongoing_depth = []
+        do_while_first_ongoing = 0
+
+        continue_stat = 0
+        break_stat = 0
 
         
 
@@ -259,8 +287,10 @@ def extract_if_depth(file_path):
                         function_calls[current_function].append(function_stack.pop())
                         function_call_depth.pop()
                         if function_stack:
-                            if function_stack[-1][4] == 'clone' or function_stack[-1][4] == 'pthread_create':
+                            if function_stack[-1][11] == 'clone' or function_stack[-1][11] == 'pthread_create':
+                                temp_function_stack = function_calls[current_function].pop()
                                 function_calls[current_function].append(function_stack.pop())
+                                function_calls[current_function].append(temp_function_stack)
                     if not function_call_depth:
                         break    
 
@@ -268,14 +298,20 @@ def extract_if_depth(file_path):
                 while current_depth <= if_ongoing_depth[len(if_ongoing_depth)-1]:
                     if if_level <= 0:
                         print_error('if_level error1',lines,i)
+                    print(if_ongoing_depth,if_conditional_depth_list)
                     if_level -= 1
                     if_ongoing_depth.pop()
                     if_level_else_if_list.pop()
+                    if if_conditional_depth_list:
+                        if_conditional_depth_list.pop()
+                    else:
+                        print('empty!!',if_ongoing_depth,if_conditional_depth_list)
                     if_level_else_if_list_not_append = 0
                     if not if_level_else_if_list:
                         print_error('if_level_else_if_list error1 !!!!',lines,i)
                     if not if_ongoing_depth:
                         break
+                    
 
             #삼항 연산 조건문
 
@@ -291,10 +327,136 @@ def extract_if_depth(file_path):
                     if_level_else_if_list_not_append_conditional = 0
                     conditional_operator_ongoing = 0
                     if not conditional_ongoing_depth:
-                        break                
+                        break    
+
+            if while_ongoing_depth:
+                while current_depth <= while_ongoing_depth[-1]:
+                    if while_level <= 0:
+                        print_error('while level error4',lines,i)
+                    while_level -= 1
+                    while_ongoing_depth.pop()   
+                    while_depth_list.pop()
+                    if not while_ongoing_depth:
+                        break       
+
+            if for_ongoing_depth:
+                while current_depth <= for_ongoing_depth[-1]:
+                    if while_level <= 0:
+                        print_error('while level error5',lines,i)
+                    while_level -= 1
+                    for_ongoing_depth.pop()   
+                    for_depth_list.pop()
+                    if not for_ongoing_depth:
+                        break   
+            
+            if do_while_ongoing_depth:
+                while current_depth <= do_while_ongoing_depth[-1]:
+                    if do_while_level <= 0:
+                        print_error('while level error6',lines,i)
+                    do_while_level -= 1
+                    do_while_ongoing_depth.pop()   
+                    if not do_while_ongoing_depth:
+                        break       
+
+            #탈출 구문들 위에
+
+            #반복문 while 진입 시작
+            if while_depth_list:
+                while_depth = while_depth_list[-1]
+
+            if "WhileStmt" in line:
+                while_first_ongoing = 1
+                if while_new_check >= 1000:
+                    while_new_check = 0
+                while_new_check += 1
+                temp_while_current_depth = get_first_alpha_index(line)
+                while_ongoing_depth.append(temp_while_current_depth)
+            
+            if while_first_ongoing > 0:
+                if while_first_ongoing == 2:
+                    while_first_ongoing = 0
+                    if_conditional_depth = get_first_alpha_index(line)
+                    while_depth_list.append(if_conditional_depth)
+                    while_ongoing = 1
+                else:
+                    while_first_ongoing = 2
+
+
+            if while_ongoing > 0:
+                if while_ongoing == 2:
+                    temp_current_depth = get_first_backtick_index(line)
+                    if temp_current_depth + 2 == while_depth:
+                        while_level += 1
+                        while_ongoing = 0
+                else:
+                    while_ongoing = 2   
+            #for문 시작
+
+            if for_depth_list:          
+                for_depth = for_depth_list[-1]
+
+            if "ForStmt" in line:
+                for_first_ongoing = 1
+                if while_new_check >= 1000:
+                    while_new_check = 0
+                while_new_check += 1
+                temp_for_current_depth = get_first_alpha_index(line)
+                for_ongoing_depth.append(temp_for_current_depth)
+            
+            if for_first_ongoing > 0:
+                if for_first_ongoing == 2:
+                    for_first_ongoing = 0
+                    temp_for_current_depth = get_first_alpha_index(line)
+                    for_depth_list.append(temp_for_current_depth)
+                    for_ongoing = 1
+                else:
+                    for_first_ongoing = 2
+
+
+            if for_ongoing > 0:
+                if for_ongoing == 2:
+                    temp_current_depth = get_first_backtick_index(line)
+                    if temp_current_depth + 2 == for_depth:
+                        while_level += 1
+                        for_ongoing = 0
+                else:
+                    for_ongoing = 2   
+            
+            #do-while문 시작
+
+            if "DoStmt" in line:
+                do_while_first_ongoing = 1
+                if do_while_new_check >= 1000:
+                    do_while_new_check = 0
+                do_while_new_check += 1
+                temp_do_while_current_depth = get_first_alpha_index(line)
+                do_while_ongoing_depth.append(temp_do_while_current_depth)
+            
+            if do_while_first_ongoing > 0:
+                if do_while_first_ongoing == 2:
+                    do_while_first_ongoing = 0
+                    temp_do_while_current_depth = get_first_alpha_index(line)
+                    do_while_level += 1
+                else:
+                    do_while_first_ongoing = 2
+
+
+            if "BreakStmt" in line:
+                break_stat = 1
+            if "ContinueStmt" in line:
+                continue_stat = 1
+
+
+            #반복문 끝
+
+
+            #조건문 진입 시작
 
             if "ConditionalOperator" in line:
                 conditional_operator_first_ongoing = 1
+                if if_new_check >= 1000:
+                    if_new_check = 0
+                if_new_check += 1
                 temp_conditional_current_depth = get_first_alpha_index(line)
                 conditional_ongoing_depth.append(temp_conditional_current_depth)
                 conditional_if_level_plus = 0
@@ -329,7 +491,6 @@ def extract_if_depth(file_path):
                 elif conditional_operator_ongoing == 3:
                     if current_depth == first_conditional_operator_depth:
                         if if_level_else_if_list and len(if_level_else_if_list) > if_level: #1번째가 실제로 if_level 1단계이다.
-                            print('hello1')
                             if_level_else_if_list[if_level] += 1
                         conditional_operator_ongoing = 0
                 else:
@@ -350,17 +511,17 @@ def extract_if_depth(file_path):
                     if if_level <= 0:
                         print_error('if_level error2',lines,i)
                     if if_level_else_if_list and len(if_level_else_if_list) > if_level: #1번째가 실제로 if_level 1단계이다.
-                        print('hello2')
                         if_level_else_if_list[if_level] += 1
                     else:
                         print_error('if_level_else_if_list error2 !!!!',lines,i)
                     #print(if_level_else_if_list,if_level)
                     if "IfStmt" in line:
                         if_ongoing_depth.pop()
-                        if_level -= 1
+                        #if_level -= 1
+                        if_level_not_plus = 1
                     has_else = 0
                     has_else_list.pop()
-                    if_conditional_depth_list.pop()
+                    #if_conditional_depth_list.pop()
                     if_level_else_if_list_not_append = 1
 
             if "IfStmt" in line:
@@ -371,6 +532,9 @@ def extract_if_depth(file_path):
                 if "has_else" in line:
                     #has_else = 1
                     has_else_list.append(1)
+                if if_new_check >= 1000:
+                    if_new_check = 0
+                if_new_check += 1
                 if_first_ongoing = 1
                 temp_if_current_depth = get_first_alpha_index(line)
                 if_ongoing_depth.append(temp_if_current_depth)
@@ -379,22 +543,26 @@ def extract_if_depth(file_path):
                 if if_first_ongoing == 2:
                     if_first_ongoing = 0
                     if_conditional_depth = get_first_alpha_index(line)
+                    if if_level_not_plus == 1:
+                        if_conditional_depth_list.pop()
                     if_conditional_depth_list.append(if_conditional_depth)
                     if_conditional_ongoing = 1
                 else:
                     if_first_ongoing = 2
 
-
             if if_conditional_ongoing > 0:
                 if if_conditional_ongoing == 2:
                     if current_depth == if_conditional_depth:
-                        if_level += 1
+                        if if_level_not_plus == 0:
+                            if_level += 1
+                        else:
+                            if_level_not_plus = 0
                         if_conditional_ongoing = 0
                 else:
                     if_conditional_ongoing = 2   
 
 
-            #조건문 관련 끝 if_level을 통해서만 조절        
+            #조건문 관련 끝 if_level을 통해서만 조절  
 
             # 현재 어떤 함수 내부인지 찾기 (FunctionDecl 사용)
             if "FunctionDecl" in line:
@@ -422,7 +590,9 @@ def extract_if_depth(file_path):
                                 #    print(str(if_level), 'srand!!')
                                 #print_for_debug(lines,i,10)
                                 #print(if_level_else_if_list,if_level,called_function,has_else)
-                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],called_function])
+                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,called_function])
+                                break_stat = 0
+                                continue_stat = 0
                                 #print(called_function,function_call_depth,function_stack)
                                 #function_calls[current_function].append([call_depth,i,called_function])
                             if "clone" == called_function:
@@ -432,8 +602,10 @@ def extract_if_depth(file_path):
                                         if match2:
                                             cloned_function = match2.group(1)
                                             if cloned_function in all_functions or cloned_function in user_functions:
-                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],cloned_function])
+                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,cloned_function])
                                                 #function_calls[current_function].append([0,i,cloned_function])
+                                                break_stat = 0
+                                                continue_stat = 0
                                             break
                             if "pthread_create" == called_function:
                                 for k in range(j + 1, min(j + 20, len(lines))):  # CallExpr 이후 몇 줄 체크
@@ -443,17 +615,24 @@ def extract_if_depth(file_path):
                                             pthread_create_function = match3.group(1)
                                             if pthread_create_function in all_functions or pthread_create_function in user_functions:
                                                 #function_calls[current_function].append([0,i,pthread_create_function])
-                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],pthread_create_function])
+                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,pthread_create_function])
+                                                break_stat = 0
+                                                continue_stat = 0
                                             break
                         break
+         
+        while function_stack and current_function:
+            function_calls[current_function].append(function_stack.pop())
+            if function_stack:
+                if function_stack[-1][11] == 'clone' or function_stack[-1][11] == 'pthread_create':
+                    temp_function_stack = function_calls[current_function].pop()
+                    function_calls[current_function].append(function_stack.pop())
+                    function_calls[current_function].append(temp_function_stack)
+            else:
+                break
 
-        if function_stack and current_function:
-            for i in reversed(range(0, len(function_stack))):
-                function_calls[current_function].append(function_stack[i])            
-               
-        print(len(if_level_else_if_list),if_level_else_if_list,'!!!!!!!!!!!!!!!!!!!!!!')
-
-
+        #print(if_conditional_depth_list)
+        #exit(0)
         return function_calls
     except Exception as e:
         print(f"Error extracting function call graph: {e}")
@@ -682,7 +861,7 @@ if __name__ == "__main__":
     for caller, callees in function_graph.items():
         if callees:
             for callee in callees:
-                print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4]}")
+                print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4],callee[5],callee[6],callee[7],callee[8],callee[9],callee[10],callee[11]}")
                 call_length += 1
         else:
             print(f"{caller} -> (끝)")
