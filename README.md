@@ -9,6 +9,10 @@ This project extracts libc functions using Clang and libc symbols, identifies th
 ### Prerequisites
 
 - **Clang:** Clang must be installed on the PC to analyze C code.
+```
+sudo apt update
+sudo apt install clang
+```
 
 ### Usage
 
