@@ -298,7 +298,6 @@ def extract_if_depth(file_path):
                 while current_depth <= if_ongoing_depth[len(if_ongoing_depth)-1]:
                     if if_level <= 0:
                         print_error('if_level error1',lines,i)
-                    print(if_ongoing_depth,if_conditional_depth_list)
                     if_level -= 1
                     if_ongoing_depth.pop()
                     if_level_else_if_list.pop()
