@@ -32,10 +32,16 @@ Syscall_sequence_defense/
 │
 ├── src/
 │   ├── static_analysis.py                  # C language analysis program
+│   ├── glibc_syscall.py                    # A program converting glibc functions to system calls.
 │
 ├── example/
 │   ├── static_v1.py                        # C language analysis program
 │   ├── dirtycred.c                         # Example C code (Dirty Cred attack code)
 │
+├── callgraph/
+│   ├── glibc.2.23.callgraph                # glibc call graph
+│   ├── glibc.2.31.callgraph                # glibc call graph
+│   ├── glibc.callgraph                     # glibc call graph
+
 └── README.md                               # Project README file
 ```
