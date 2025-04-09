@@ -20,7 +20,7 @@ sudo apt install clang
 
 ```
 cd C_static_analysis/src/
-python3 static_analysis.py [file name]
+python3 static_analysis.py [c source code name]
 ```
 
 Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
