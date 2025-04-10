@@ -274,6 +274,23 @@ def extract_if_depth(file_path):
         continue_stat = 0
         break_stat = 0
 
+        #break_stat 1 means break appear anyhere
+        #break_stat 2 means break appear in switch-case
+        #break_stat 3 means case-> break-> case
+        #if break_stat > 0 but not for, while, switch-case ... means previous information remained so discard this information
+
+        switch_ongoing_depth = []
+        switch_depth_list = []
+        switch_depth = 0
+        switch_ongoing = 0
+        switch_level = 0
+        switch_case_list = [] #switch case문들을 wide하게 표현하기 위해 사용되는 리스트
+        switch_case_list.append(0)
+        switch_not_append = 0
+        switch_new_check = 0
+        switch_first_ongoing = 0
+        switch_break = 0
+
         
 
         for i in range(len(lines)):
@@ -287,7 +304,7 @@ def extract_if_depth(file_path):
                         function_calls[current_function].append(function_stack.pop())
                         function_call_depth.pop()
                         if function_stack:
-                            if function_stack[-1][11] == 'clone' or function_stack[-1][11] == 'pthread_create':
+                            if function_stack[-1][14] == 'clone' or function_stack[-1][14] == 'pthread_create':
                                 temp_function_stack = function_calls[current_function].pop()
                                 function_calls[current_function].append(function_stack.pop())
                                 function_calls[current_function].append(temp_function_stack)
@@ -355,7 +372,24 @@ def extract_if_depth(file_path):
                     do_while_level -= 1
                     do_while_ongoing_depth.pop()   
                     if not do_while_ongoing_depth:
-                        break       
+                        break    
+
+
+            if switch_ongoing_depth:
+                while current_depth <= switch_ongoing_depth[-1]:
+                    if switch_level <= 0:
+                        print_error('switch level error',lines,i)
+                    switch_level -= 1
+                    switch_ongoing_depth.pop()   
+                    switch_depth_list.pop()
+                    if switch_break == 1:
+                        switch_break = 0
+                    if len(switch_case_list) >= 1:
+                        switch_case_list.pop()
+                    else:
+                        print_error("switch case pop error")
+                    if not switch_ongoing_depth:
+                        break      
 
             #탈출 구문들 위에
 
@@ -438,12 +472,6 @@ def extract_if_depth(file_path):
                     do_while_level += 1
                 else:
                     do_while_first_ongoing = 2
-
-
-            if "BreakStmt" in line:
-                break_stat = 1
-            if "ContinueStmt" in line:
-                continue_stat = 1
 
 
             #반복문 끝
@@ -560,8 +588,63 @@ def extract_if_depth(file_path):
                 else:
                     if_conditional_ongoing = 2   
 
-
             #조건문 관련 끝 if_level을 통해서만 조절  
+
+            #switch-case start
+
+            if switch_depth_list:
+                switch_depth = switch_depth_list[-1]    #마지막 가져오기
+
+            if "SwitchStmt" in line:
+                if switch_not_append == 0:
+                    switch_case_list.append(0)
+                else:
+                    switch_not_append = 0
+                if switch_new_check >= 1000:
+                    switch_new_check = 0
+                switch_new_check += 1
+                switch_first_ongoing = 1
+                temp_switch_current_depth = get_first_alpha_index(line)
+                switch_ongoing_depth.append(temp_switch_current_depth)
+            
+            if switch_first_ongoing > 0:
+                if switch_first_ongoing == 2:
+                    switch_first_ongoing = 0
+                    temp_switch_current_depth = get_first_alpha_index(line)
+                    switch_depth_list.append(temp_switch_current_depth)
+                    switch_ongoing = 1
+                else:
+                    switch_first_ongoing = 2
+
+            if switch_ongoing > 0:
+                if switch_ongoing == 2:
+                    temp_current_depth = get_first_backtick_index(line)
+                    if temp_current_depth == switch_depth:
+                        switch_level += 1
+                        switch_ongoing = 0
+                else:
+                    switch_ongoing = 2
+            
+            if "CaseStmt" in line or "DefaultStmt" in line:
+                if switch_level >= 1:
+                    if switch_break == 0 and break_stat == 2:
+                        switch_break = 1
+                        break_stat = 3      
+                    elif switch_break == 0:
+                        switch_break = 1
+                    if len(switch_case_list) <= switch_level:
+                        switch_case_list.append(0)
+                    else:
+                        switch_case_list[switch_level] += 1
+
+
+            if "BreakStmt" in line:             
+                break_stat = 1
+                if switch_break == 1 and break_stat != 3:
+                    break_stat = 2
+                    switch_break = 0
+            if "ContinueStmt" in line:
+                continue_stat = 1
 
             # 현재 어떤 함수 내부인지 찾기 (FunctionDecl 사용)
             if "FunctionDecl" in line:
@@ -589,7 +672,7 @@ def extract_if_depth(file_path):
                                 #    print(str(if_level), 'srand!!')
                                 #print_for_debug(lines,i,10)
                                 #print(if_level_else_if_list,if_level,called_function,has_else)
-                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,called_function])
+                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,switch_level,switch_case_list[switch_level],switch_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,called_function])
                                 break_stat = 0
                                 continue_stat = 0
                                 #print(called_function,function_call_depth,function_stack)
@@ -601,7 +684,7 @@ def extract_if_depth(file_path):
                                         if match2:
                                             cloned_function = match2.group(1)
                                             if cloned_function in all_functions or cloned_function in user_functions:
-                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,cloned_function])
+                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,switch_level,switch_case_list[switch_level],switch_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,cloned_function])
                                                 #function_calls[current_function].append([0,i,cloned_function])
                                                 break_stat = 0
                                                 continue_stat = 0
@@ -614,7 +697,7 @@ def extract_if_depth(file_path):
                                             pthread_create_function = match3.group(1)
                                             if pthread_create_function in all_functions or pthread_create_function in user_functions:
                                                 #function_calls[current_function].append([0,i,pthread_create_function])
-                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,pthread_create_function])
+                                                function_stack.append([current_call_depth,i,if_level,if_level_else_if_list[if_level],if_new_check,switch_level,switch_case_list[switch_level],switch_new_check,while_level,while_new_check,do_while_level,do_while_new_check,break_stat,continue_stat,pthread_create_function])
                                                 break_stat = 0
                                                 continue_stat = 0
                                             break
@@ -860,7 +943,7 @@ if __name__ == "__main__":
     for caller, callees in function_graph.items():
         if callees:
             for callee in callees:
-                print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4],callee[5],callee[6],callee[7],callee[8],callee[9],callee[10],callee[11]}")
+                print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4],callee[5],callee[6],callee[7],callee[8],callee[9],callee[10],callee[11],callee[12],callee[13],callee[14]}")
                 call_length += 1
         else:
             print(f"{caller} -> (끝)")
