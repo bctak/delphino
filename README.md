@@ -45,6 +45,7 @@ The glibc function name specifies the name of the glibc function to be converted
 
 ##### Example
 ```
+cd C_static_analysis/example/
 python3 glibc_syscall.py -o json glibc.callgraph printf 
 ```
 
@@ -58,7 +59,8 @@ Pass the filename of the C code to be analyzed as the first argument. As a resul
 
 ##### Example
 ```
-python3 extract_glibc.py ./../example/dirtycred.c
+cd C_static_analysis/example/
+python3 extract_glibc.py dirtycred.c
 ```
 
 ## Project Structure
