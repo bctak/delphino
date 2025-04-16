@@ -54,8 +54,12 @@ python3 glibc_syscall.py -o json glibc.callgraph printf
 cd C_static_analysis/src/
 python3 extract_glibc.py [c source code name]
 ```
-
 Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
+
+##### Example
+```
+python3 extract_glibc.py ./../example/dirtycred.c
+```
 
 ## Project Structure
 ```
