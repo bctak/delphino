@@ -16,16 +16,16 @@ sudo apt install clang
 
 ### Usage
 
-#### Run static analysis program
+#### Static analysis program
 
 ```
 cd C_static_analysis/src/
 python3 static_analysis.py [c source code name]
 ```
 
-Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
+Pass the filename of the C code to be analyzed as the first argument. As a result, a call graph of glibc functions used in the C code will be displayed.
 
-#### Run glibc -> system call program
+#### Program that converts glibc functions to system calls.
 
 ```
 cd C_static_analysis/src/
@@ -48,6 +48,14 @@ The glibc function name specifies the name of the glibc function to be converted
 python3 glibc_syscall.py -o json glibc.callgraph printf 
 ```
 
+#### Program to extract glibc functions used in C code
+
+```
+cd C_static_analysis/src/
+python3 extract_glibc.py [c source code name]
+```
+
+Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
 
 ## Project Structure
 ```
