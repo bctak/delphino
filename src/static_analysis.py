@@ -3,6 +3,17 @@ import re
 import sys
 import os
 
+#control constant
+NORMAL_CONTROL = 0
+IF_CONTROL = 0b1
+SWITCH_CONTROL = 0b10
+WHILE_CONTROL = 0b100
+DO_WHILE_CONTROL = 0b1000
+BREAK_CONTROL = 0b10000
+CONTINUE_CONTROL = 0b100000
+
+
+
 def get_glibc_functions():
     """Get a list of all symbols provided by glibc, including all symbol types."""
     try:
@@ -184,6 +195,10 @@ def print_for_debug(lines,i,n):
     for j in range(0, n):
         print(lines[i- (int)(n/2)+ j])
 
+def print_error_for_make_function(error_msg):
+    print(error_msg)
+    exit(1)
+
 
 def extract_glibc_functions_from_c_code(file_path):
     """Extract glibc function calls from a given C source file using Clang AST."""
@@ -315,6 +330,7 @@ def extract_if_depth(file_path):
                 while current_depth <= if_ongoing_depth[len(if_ongoing_depth)-1]:
                     if if_level <= 0:
                         print_error('if_level error1',lines,i)
+                    function_calls[current_function].append(('end_info','if',if_level))
                     if_level -= 1
                     if_ongoing_depth.pop()
                     if_level_else_if_list.pop()
@@ -323,6 +339,9 @@ def extract_if_depth(file_path):
                     else:
                         print('empty!!',if_ongoing_depth,if_conditional_depth_list)
                     if_level_else_if_list_not_append = 0
+                    if if_new_check >= 1000:
+                        if_new_check = 0
+                    if_new_check += 1
                     if not if_level_else_if_list:
                         print_error('if_level_else_if_list error1 !!!!',lines,i)
                     if not if_ongoing_depth:
@@ -335,6 +354,7 @@ def extract_if_depth(file_path):
                 while current_depth <= conditional_ongoing_depth[-1]:
                     if if_level <= 0:
                         print_error('if_level error3',lines,i)
+                    function_calls[current_function].append(('end_info','conditional',if_level))
                     if_level -= 1
                     conditional_ongoing_depth.pop()
                     if_level_else_if_list.pop()
@@ -342,6 +362,9 @@ def extract_if_depth(file_path):
                     conditional_operator_ongoing_list.pop()
                     if_level_else_if_list_not_append_conditional = 0
                     conditional_operator_ongoing = 0
+                    if if_new_check >= 1000:
+                        if_new_check = 0
+                    if_new_check += 1
                     if not conditional_ongoing_depth:
                         break    
 
@@ -349,6 +372,7 @@ def extract_if_depth(file_path):
                 while current_depth <= while_ongoing_depth[-1]:
                     if while_level <= 0:
                         print_error('while level error4',lines,i)
+                    function_calls[current_function].append(('end_info','while',while_level))
                     while_level -= 1
                     while_ongoing_depth.pop()   
                     while_depth_list.pop()
@@ -359,6 +383,7 @@ def extract_if_depth(file_path):
                 while current_depth <= for_ongoing_depth[-1]:
                     if while_level <= 0:
                         print_error('while level error5',lines,i)
+                    function_calls[current_function].append(('end_info','for',while_level))
                     while_level -= 1
                     for_ongoing_depth.pop()   
                     for_depth_list.pop()
@@ -369,6 +394,7 @@ def extract_if_depth(file_path):
                 while current_depth <= do_while_ongoing_depth[-1]:
                     if do_while_level <= 0:
                         print_error('while level error6',lines,i)
+                    function_calls[current_function].append(('end_info','for',do_while_level))
                     do_while_level -= 1
                     do_while_ongoing_depth.pop()   
                     if not do_while_ongoing_depth:
@@ -379,6 +405,7 @@ def extract_if_depth(file_path):
                 while current_depth <= switch_ongoing_depth[-1]:
                     if switch_level <= 0:
                         print_error('switch level error',lines,i)
+                    function_calls[current_function].append(('end_info','switch',switch_level))
                     switch_level -= 1
                     switch_ongoing_depth.pop()   
                     switch_depth_list.pop()
@@ -399,9 +426,6 @@ def extract_if_depth(file_path):
 
             if "WhileStmt" in line:
                 while_first_ongoing = 1
-                if while_new_check >= 1000:
-                    while_new_check = 0
-                while_new_check += 1
                 temp_while_current_depth = get_first_alpha_index(line)
                 while_ongoing_depth.append(temp_while_current_depth)
             
@@ -420,6 +444,10 @@ def extract_if_depth(file_path):
                     temp_current_depth = get_first_backtick_index(line)
                     if temp_current_depth + 2 == while_depth:
                         while_level += 1
+                        function_calls[current_function].append(('start_info','while',while_level))
+                        if while_new_check >= 1000: #실제로 반복문 내부로 들어왔을 때만 증가하게
+                            while_new_check = 0
+                        while_new_check += 1
                         while_ongoing = 0
                 else:
                     while_ongoing = 2   
@@ -430,9 +458,6 @@ def extract_if_depth(file_path):
 
             if "ForStmt" in line:
                 for_first_ongoing = 1
-                if while_new_check >= 1000:
-                    while_new_check = 0
-                while_new_check += 1
                 temp_for_current_depth = get_first_alpha_index(line)
                 for_ongoing_depth.append(temp_for_current_depth)
             
@@ -451,6 +476,10 @@ def extract_if_depth(file_path):
                     temp_current_depth = get_first_backtick_index(line)
                     if temp_current_depth + 2 == for_depth:
                         while_level += 1
+                        function_calls[current_function].append(('start_info','for',while_level))
+                        if while_new_check >= 1000:
+                            while_new_check = 0
+                        while_new_check += 1
                         for_ongoing = 0
                 else:
                     for_ongoing = 2   
@@ -459,9 +488,6 @@ def extract_if_depth(file_path):
 
             if "DoStmt" in line:
                 do_while_first_ongoing = 1
-                if do_while_new_check >= 1000:
-                    do_while_new_check = 0
-                do_while_new_check += 1
                 temp_do_while_current_depth = get_first_alpha_index(line)
                 do_while_ongoing_depth.append(temp_do_while_current_depth)
             
@@ -470,6 +496,10 @@ def extract_if_depth(file_path):
                     do_while_first_ongoing = 0
                     temp_do_while_current_depth = get_first_alpha_index(line)
                     do_while_level += 1
+                    function_calls[current_function].append(('start_info','do_while',do_while_level))
+                    if do_while_new_check >= 1000:
+                        do_while_new_check = 0
+                    do_while_new_check += 1
                 else:
                     do_while_first_ongoing = 2
 
@@ -481,9 +511,6 @@ def extract_if_depth(file_path):
 
             if "ConditionalOperator" in line:
                 conditional_operator_first_ongoing = 1
-                if if_new_check >= 1000:
-                    if_new_check = 0
-                if_new_check += 1
                 temp_conditional_current_depth = get_first_alpha_index(line)
                 conditional_ongoing_depth.append(temp_conditional_current_depth)
                 conditional_if_level_plus = 0
@@ -491,6 +518,9 @@ def extract_if_depth(file_path):
                     if_level_else_if_list.append(0)
                 else:
                     if_level_else_if_list_not_append_conditional = 0
+                if if_new_check >= 1000:
+                    if_new_check = 0
+                if_new_check += 1
             
             if first_conditional_operator_depth_list:
                 first_conditional_operator_depth = first_conditional_operator_depth_list[-1]
@@ -512,13 +542,16 @@ def extract_if_depth(file_path):
                     if current_depth == first_conditional_operator_depth:
                         if conditional_if_level_plus == 0:
                             if_level += 1
+                            function_calls[current_function].append(('start_info','conditional',if_level))
                             conditional_if_level_plus = 1
                         conditional_operator_ongoing = 3
                         conditional_operator_ongoing_list[-1] = 3
+
                 elif conditional_operator_ongoing == 3:
                     if current_depth == first_conditional_operator_depth:
                         if if_level_else_if_list and len(if_level_else_if_list) > if_level: #1번째가 실제로 if_level 1단계이다.
                             if_level_else_if_list[if_level] += 1
+                            function_calls[current_function].append(('start_info','else if',if_level))
                         conditional_operator_ongoing = 0
                 else:
                     conditional_operator_ongoing = 2
@@ -546,6 +579,9 @@ def extract_if_depth(file_path):
                         if_ongoing_depth.pop()
                         #if_level -= 1
                         if_level_not_plus = 1
+                        function_calls[current_function].append(('start_info','else if',if_level))
+                    else:
+                        function_calls[current_function].append(('start_info','else',if_level))
                     has_else = 0
                     has_else_list.pop()
                     #if_conditional_depth_list.pop()
@@ -554,14 +590,14 @@ def extract_if_depth(file_path):
             if "IfStmt" in line:
                 if if_level_else_if_list_not_append == 0:
                     if_level_else_if_list.append(0)
+                    if if_new_check >= 1000:
+                        if_new_check = 0
+                    if_new_check += 1
                 else:
                     if_level_else_if_list_not_append = 0
                 if "has_else" in line:
                     #has_else = 1
                     has_else_list.append(1)
-                if if_new_check >= 1000:
-                    if_new_check = 0
-                if_new_check += 1
                 if_first_ongoing = 1
                 temp_if_current_depth = get_first_alpha_index(line)
                 if_ongoing_depth.append(temp_if_current_depth)
@@ -582,8 +618,10 @@ def extract_if_depth(file_path):
                     if current_depth == if_conditional_depth:
                         if if_level_not_plus == 0:
                             if_level += 1
+                            function_calls[current_function].append(('start_info','if',if_level))
                         else:
                             if_level_not_plus = 0
+
                         if_conditional_ongoing = 0
                 else:
                     if_conditional_ongoing = 2   
@@ -621,6 +659,7 @@ def extract_if_depth(file_path):
                     temp_current_depth = get_first_backtick_index(line)
                     if temp_current_depth == switch_depth:
                         switch_level += 1
+                        function_calls[current_function].append(('start_info','switch',switch_level))
                         switch_ongoing = 0
                 else:
                     switch_ongoing = 2
@@ -632,6 +671,7 @@ def extract_if_depth(file_path):
                         break_stat = 3      
                     elif switch_break == 0:
                         switch_break = 1
+                    function_calls[current_function].append(('start_info','case',switch_level))
                     if len(switch_case_list) <= switch_level:
                         switch_case_list.append(0)
                     else:
@@ -640,11 +680,13 @@ def extract_if_depth(file_path):
 
             if "BreakStmt" in line:             
                 break_stat = 1
+                function_calls[current_function].append(('end_info','break',break_stat))
                 if switch_break == 1 and break_stat != 3:
                     break_stat = 2
                     switch_break = 0
             if "ContinueStmt" in line:
                 continue_stat = 1
+                function_calls[current_function].append(('end_info','continue',continue_stat))
 
             # 현재 어떤 함수 내부인지 찾기 (FunctionDecl 사용)
             if "FunctionDecl" in line:
@@ -653,6 +695,12 @@ def extract_if_depth(file_path):
                     current_function = match.group(1)
                     if current_function in user_functions:
                         function_calls[current_function] = []  # 함수 호출 그래프 초기화
+                        if_new_check = 0
+                        while_new_check = 0
+                        do_while_new_check = 0
+                        break_stat = 0
+                        continue_stat = 0
+                        switch_new_check = 0
 
             #함수에 대해서 처리
             if "CallExpr" in line and current_function:    
@@ -897,6 +945,230 @@ def extract_function_call_graph_old(file_path):
     except Exception as e:
         print(f"Error extracting function call graph: {e}")
         return {}
+    
+def control_flow_check(callee):
+    control_return_val = 0
+    #return val means
+    # 0 : normal
+    # 1 : if
+    # 2 : switch
+    # 4 : for, while
+    # 8 : do-while
+    # 16 : break
+    # 32 : continue
+    if 'end_info' != callee[0] and 'start_info' != callee[0]:
+        #print('normal!!')
+        return NORMAL_CONTROL
+    if callee[1] == 'if' or callee[1] == 'conditional' or callee[1] == 'else if' or callee[1] == 'else':
+        #print('if!!')
+        control_return_val |= IF_CONTROL
+    if callee[1] == 'switch' or callee[1] == 'case':
+        #print('switch!!')
+        control_return_val |= SWITCH_CONTROL
+    if callee[1] == 'for' or callee[1] =='while':
+        #print('while!!')
+        control_return_val |= WHILE_CONTROL
+    if callee[1] == 'do_while':
+        #print('do while!!')
+        control_return_val |= DO_WHILE_CONTROL
+    if callee[1] == 'break':
+        #print('break!!')
+        control_return_val |= BREAK_CONTROL
+    if callee[1] == 'continue':
+        #print('continue!!')
+        control_return_val |= CONTINUE_CONTROL
+    if control_return_val == NORMAL_CONTROL:
+        print_error_for_make_function('control flow error')
+    return control_return_val
+
+def make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee):
+    if not prev_callee_list:
+        print_error_for_make_function('make connect error')
+    for temp_prev_callee in prev_callee_list:
+        call_graph_matrix[caller][temp_prev_callee[-1]][call_graph_function_pos[caller][callee[-1]]] = 1
+
+def function_not_in_list(callee,callee_list):
+    check = 0
+    for temp_callee in callee_list:
+        if callee[-1] == temp_callee[-1]:
+            check = 1
+            break
+    return check
+
+
+def make_matrix_from_function_graph(function_graph):
+    call_graph_matrix = {}
+    call_graph_function_pos = {}
+    call_graph_function_start  = {}
+    call_graph_function_end = {}
+    for caller, callees in function_graph.items():
+        call_graph_matrix[caller] = {}
+        call_graph_function_pos[caller] = {}
+        call_graph_function_start[caller] = []
+        call_graph_function_end[caller] = []
+        if callees:
+            print(caller)
+            function_set = set([])
+            function_set.add('start_callee!')
+            for callee in callees:
+                if control_flow_check(callee) == NORMAL_CONTROL:
+                    function_set.add(callee[-1])
+            index = 0
+            for function_name in function_set:
+                call_graph_matrix[caller][function_name] = [0]*len(function_set)
+                call_graph_function_pos[caller][function_name] = index
+                index += 1
+            #for function_name, function_call_matrix in call_graph_matrix[caller].items():
+            #    print(function_name,function_call_matrix)
+            #print(call_graph_function_pos[caller])
+            #기본 matrix 및 함수당 인덱스 매핑 완료
+
+            prev_callee = (0,0,0,0,0,0,0,0,0,0,0,0,0,0,'start_callee!')
+            prev_callee_list = []
+            prev_callee_list.append(prev_callee)
+            start_make_matrix = 0
+            for_prev_start = [[] for _ in range(100)] #for, while문 시작직전 함수 담는 스택
+            for_after_start = [[] for _ in range(100)] #for, while문 시작직후 함수 담는 스택
+            do_after_start = [[] for _ in range(100)] #do while문 시작직후 함수 담는 스택 (직전은 필요없음)
+           
+            switch_prev_start = [[] for _ in range(100)] #switch case문 시작직전 함수 담는 스택
+            switch_ongoing_stack = [[] for _ in range(100)] #switch case문 중에 함수 담는 스택
+
+
+            if_prev_start_list = [[] for _ in range(100)] #if, 삼항 조건문 시작직전 함수 담는 스택
+            if_ongoing_start_list = [[] for _ in range(100)] # else if문 함수 담는 스택
+            if_function_in_list = [0] * 100 #if문 안에 함수가 있었는지 확인하는 리스트
+            if_function_in_final_list = [0] * 100 #if문안에 함수가 하나라도 없었으면 1로 바꿈
+            if_ongoing_start_level_list = []
+            if_prev_start = [0] * 100
+            else_if_ongoing_start = [0] * 100
+            else_ongoing_start = [0] * 100
+            if_ongoing_start = [0] * 100
+
+            
+
+            for i in range(0,len(callees)):
+                callee = callees[i]
+                control_flow_retun_val = control_flow_check(callee)
+                if control_flow_retun_val == NORMAL_CONTROL:
+                    if not prev_callee_list:
+                        print_error_for_make_function('prev_callee_list error1')
+                    if if_ongoing_start[callee[2]] == 1:
+                        if_function_in_list[callee[2]] = 1  #if안에 함수가 하나라도 있었다.
+                        if else_if_ongoing_start[callee[2]] == 1:                   #else if가 나오고 처음이면 ongoing에 넣음
+                            else_if_ongoing_start[callee[2]] = 2
+                            if_ongoing_start_list[callee[2]].append(callee)
+                            temp_if_ongoing_start_level = if_ongoing_start_level_list[-1]
+                            make_connect(call_graph_matrix,call_graph_function_pos,caller,if_prev_start_list[temp_if_ongoing_start_level],callee)
+                        elif else_if_ongoing_start[callee[2]] == 2:
+                            if_ongoing_start_list[callee[2]][-1] = callee #else if문의 마지막으로 호출된 함수를 최근으로 바꿔줌
+                            make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
+                    else:   #진짜 아무것도 아닐때
+                        make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
+                    prev_callee_list.clear()
+                    prev_callee_list.append(callee)
+                #if 삼항연산자 체크
+                elif control_flow_retun_val == IF_CONTROL:
+                    if callee[0] == 'start_info':
+                        if callee[1] == 'if' or callee[1] == 'conditional':
+                            if_prev_start[callee[2]] = 1
+                            else_if_ongoing_start[callee[2]] = 1
+                            if_ongoing_start[callee[2]] = 1
+                            for temp_prev_callee in prev_callee_list:
+                                if_prev_start_list[callee[2]].append(temp_prev_callee)
+                            if_ongoing_start_level_list.append(callee[2])
+                        elif callee[1] == 'else if':
+                            if if_function_in_list[callee[2]] == 0:
+                                if_function_in_final_list[callee[2]] = 1
+                            if_function_in_list[callee[2]] = 0
+                            else_if_ongoing_start[callee[2]] = 1
+                        elif callee[1] == 'else':
+                            if if_function_in_list[callee[2]] == 0:
+                                if_function_in_final_list[callee[2]] = 1
+                            if_function_in_list[callee[2]] = 0
+                            else_if_ongoing_start[callee[2]] = 1
+                            else_ongoing_start[callee[2]] = 1
+                        else:
+                            print_error_for_make_function('IF_CONTROL error1')
+                    else:   #end_info
+                        prev_callee_list.clear()
+                        if if_ongoing_start_list[callee[2]]: #if문 끝났는데 else if가 남아있다면
+                            for temp_prev_callee in if_ongoing_start_list[callee[2]]:
+                                if function_not_in_list(temp_prev_callee,prev_callee_list) == 0:
+                                    prev_callee_list.append(temp_prev_callee)
+                            if_ongoing_start_list[callee[2]].clear()
+                        if else_ongoing_start[callee[2]] == 0:
+                            if if_prev_start_list[callee[2]]:
+                                for temp_if_prev_start in if_prev_start_list[callee[2]]:
+                                    if function_not_in_list(temp_if_prev_start,prev_callee_list) == 0:
+                                        prev_callee_list.append(temp_if_prev_start)
+                        else:
+                            if if_function_in_list[callee[2]] != 1 or if_function_in_final_list[callee[2]] != 0:
+                                if if_prev_start_list[callee[2]]:
+                                    for temp_if_prev_start in if_prev_start_list[callee[2]]:
+                                        if function_not_in_list(temp_if_prev_start,prev_callee_list) == 0:
+                                            prev_callee_list.append(temp_if_prev_start)
+                        
+                        if_prev_start[callee[2]] = 0
+                        if_ongoing_start[callee[2]] = 0
+                        else_if_ongoing_start[callee[2]] = 0
+                        if_function_in_list[callee[2]] = 0
+                        if_function_in_final_list[callee[2]] = 0
+                        else_ongoing_start[callee[2]] = 0
+                        if_prev_start_list[callee[2]].clear()
+                        if_ongoing_start_list[callee[2]].clear()
+                        if_ongoing_start_level_list.pop()
+
+                        
+
+                        
+
+                #for while 체크
+                    
+                #do while문 체크
+
+                #switch 체크
+
+                #break문 체크
+
+                #continue문 체크
+
+                #일반적인상황
+            """
+            print(caller,'debug')
+            print(prev_callee_list)
+            for item in if_prev_start_list:
+                if item:
+                    print('if_prev_start_list',item)
+            for item in if_ongoing_start_list:
+                if item:
+                    print('if_ongoing_start_list',item)
+            for item in if_ongoing_start_level_list:
+                if item:
+                    print('if_ongoing_start_level_list',item)        
+            """
+
+            for function_name, function_call_matrix in call_graph_matrix[caller].items():
+                print(function_name,function_call_matrix)
+            print(call_graph_function_pos[caller])
+
+
+                
+
+def print_call_graph(function_graph):
+    print("Function Call Graph:")
+    call_length = 0
+    for caller, callees in function_graph.items():
+        if callees:
+            for callee in callees:
+                if 'end_info' != callee[0] and 'start_info' != callee[0]:
+                    print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4],callee[5],callee[6],callee[7],callee[8],callee[9],callee[10],callee[11],callee[12],callee[13],callee[-1]}")
+                    call_length += 1
+                else:
+                    print(f"{caller} -> {callee[0],callee[1],callee[2]}")
+        else:
+            print(f"{caller} -> (끝)")
+    print("Function Call Graph Lengh: "+str(call_length))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -937,14 +1209,7 @@ if __name__ == "__main__":
     #function_graph = extract_function_call_graph(c_file)
     """
     function_graph = extract_if_depth(c_file)
+    print_call_graph(function_graph)
+    make_matrix_from_function_graph(function_graph)
 
-    print("Function Call Graph:")
-    call_length = 0
-    for caller, callees in function_graph.items():
-        if callees:
-            for callee in callees:
-                print(f"{caller} -> {callee[0],callee[1],callee[2],callee[3],callee[4],callee[5],callee[6],callee[7],callee[8],callee[9],callee[10],callee[11],callee[12],callee[13],callee[14]}")
-                call_length += 1
-        else:
-            print(f"{caller} -> (끝)")
-    print("Function Call Graph Lengh: "+str(call_length))
+
