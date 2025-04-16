@@ -16,16 +16,16 @@ sudo apt install clang
 
 ### Usage
 
-#### Run static analysis program
+#### 1. Static analysis program ( not completed )
 
 ```
 cd C_static_analysis/src/
 python3 static_analysis.py [c source code name]
 ```
 
-Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
+Pass the filename of the C code to be analyzed as the first argument. As a result, a call graph of glibc functions used in the C code will be displayed.
 
-#### Run glibc -> system call program
+#### 2. Program that converts glibc functions to system calls.
 
 ```
 cd C_static_analysis/src/
@@ -45,9 +45,23 @@ The glibc function name specifies the name of the glibc function to be converted
 
 ##### Example
 ```
+cd C_static_analysis/example/
 python3 glibc_syscall.py -o json glibc.callgraph printf 
 ```
 
+#### 3. Program to extract glibc functions used in C code
+
+```
+cd C_static_analysis/src/
+python3 extract_glibc.py [c source code name]
+```
+Pass the filename of the C code to be analyzed as the first argument. As a result, the glibc functions used in the C code will be displayed.
+
+##### Example
+```
+cd C_static_analysis/example/
+python3 extract_glibc.py dirtycred.c
+```
 
 ## Project Structure
 ```
@@ -56,10 +70,16 @@ Syscall_sequence_defense/
 ├── src/
 │   ├── static_analysis.py                  # C language analysis program
 │   ├── glibc_syscall.py                    # A program converting glibc functions to system calls.
+│   ├── extract_glibc.py                    # Extract glibc functions used in C code
 │
 ├── example/
-│   ├── static_v1.py                        # C language analysis program
+│   ├── static_analysis.py                  # C language analysis program
+│   ├── glibc_syscall.py                    # A program converting glibc functions to system calls.
+│   ├── extract_glibc.py                    # Extract glibc functions used in C code
 │   ├── dirtycred.c                         # Example C code (Dirty Cred attack code)
+│   ├── glibc.2.23.callgraph                # glibc call graph
+│   ├── glibc.2.31.callgraph                # glibc call graph
+│   ├── glibc.callgraph                     # glibc call graph
 │
 ├── callgraph/
 │   ├── glibc.2.23.callgraph                # glibc call graph
