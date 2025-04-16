@@ -16,7 +16,7 @@ sudo apt install clang
 
 ### Usage
 
-#### Static analysis program
+#### 1. Static analysis program
 
 ```
 cd C_static_analysis/src/
@@ -25,7 +25,7 @@ python3 static_analysis.py [c source code name]
 
 Pass the filename of the C code to be analyzed as the first argument. As a result, a call graph of glibc functions used in the C code will be displayed.
 
-#### Program that converts glibc functions to system calls.
+#### 2. Program that converts glibc functions to system calls.
 
 ```
 cd C_static_analysis/src/
@@ -49,7 +49,7 @@ cd C_static_analysis/example/
 python3 glibc_syscall.py -o json glibc.callgraph printf 
 ```
 
-#### Program to extract glibc functions used in C code
+#### 3. Program to extract glibc functions used in C code
 
 ```
 cd C_static_analysis/src/
