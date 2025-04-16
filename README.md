@@ -16,7 +16,7 @@ sudo apt install clang
 
 ### Usage
 
-#### 1. Static analysis program
+#### 1. Static analysis program ( not completed )
 
 ```
 cd C_static_analysis/src/
