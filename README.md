@@ -73,8 +73,13 @@ Syscall_sequence_defense/
 │   ├── extract_glibc.py                    # Extract glibc functions used in C code
 │
 ├── example/
-│   ├── static_v1.py                        # C language analysis program
+│   ├── static_analysis.py                  # C language analysis program
+│   ├── glibc_syscall.py                    # A program converting glibc functions to system calls.
+│   ├── extract_glibc.py                    # Extract glibc functions used in C code
 │   ├── dirtycred.c                         # Example C code (Dirty Cred attack code)
+│   ├── glibc.2.23.callgraph                # glibc call graph
+│   ├── glibc.2.31.callgraph                # glibc call graph
+│   ├── glibc.callgraph                     # glibc call graph
 │
 ├── callgraph/
 │   ├── glibc.2.23.callgraph                # glibc call graph
