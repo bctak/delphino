@@ -1125,12 +1125,22 @@ def make_matrix_from_function_graph(function_graph):
             default_ongoing_start = [0] * 100
             switch_ongoing_start = [0] * 100
 
+            while_prev_start_list = [[] for _ in range(100)] #if, 삼항 조건문 시작직전 함수 담는 스택
+            while_ongoing_start_list = [[] for _ in range(100)] # else if문 함수 담는 스택
+            while_function_in_list = [0] * 100 #if문 안에 함수가 있었는지 확인하는 리스트
+            while_function_in_final_list = [0] * 100 #if문안에 함수가 하나라도 없었으면 1로 바꿈
+            while_ongoing_start_level_list = []
+            while_prev_start = [0] * 100
+            #else_if_ongoing_start = [0] * 100
+            #else_ongoing_start = [0] * 100
+            while_ongoing_start = [0] * 100
+
             
 
             for i in range(0,len(callees)):
                 callee = callees[i]
-                control_flow_retun_val = control_flow_check(callee)
-                if control_flow_retun_val == NORMAL_CONTROL:
+                control_flow_return_val = control_flow_check(callee)
+                if control_flow_return_val == NORMAL_CONTROL:
                     if not prev_callee_list:
                         print_error_for_make_function('prev_callee_list error1')
                     if control_flow_list:
@@ -1154,19 +1164,33 @@ def make_matrix_from_function_graph(function_graph):
                                     #control_flow_end_function_current_list[-1] = callee
                                     make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
                         elif control_flow == SWITCH_CONTROL:
-                            print('hi')
+                            if switch_ongoing_start[callee[2]] == 1:
+                                switch_function_in_list[callee[2]] = 1  #if안에 함수가 하나라도 있었다.
+                                if control_flow == 1:
+                                    control_flow = 0
+                                if case_ongoing_start[callee[2]] == 1:                   #else if가 나오고 처음이면 ongoing에 넣음
+                                    case_ongoing_start[callee[2]] = 2
+                                    switch_ongoing_start_list[callee[2]].append(callee)
+                                    #control_flow_start_function_current_list.append(callee)
+                                    #control_flow_end_function_current_list.append(callee)
+                                    temp_if_ongoing_start_level = if_ongoing_start_level_list[-1]
+                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
+                                elif case_ongoing_start[callee[2]] == 2:
+                                    switch_ongoing_start_list[callee[2]][-1] = callee #else if문의 마지막으로 호출된 함수를 최근으로 바꿔줌
+                                    #control_flow_end_function_current_list[-1] = callee
+                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
                     else:   #진짜 아무것도 아닐때
                         make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,callee)
                     prev_callee_list.clear()
                     prev_callee_list.append(callee)
                 #if 삼항연산자 체크
                 else:
-                    if control_flow_retun_val == IF_CONTROL:
+                    if control_flow_return_val == IF_CONTROL:
                         if callee[0] == 'start_info':
                             if callee[1] == 'if' or callee[1] == 'conditional':
                                 #control_flow_start_function_list.append([])
                                 #control_flow_end_function_list.append([])
-                                control_flow_list.append(control_flow_retun_val)
+                                control_flow_list.append(control_flow_return_val)
                                 if_prev_start[callee[2]] = 1
                                 else_if_ongoing_start[callee[2]] = 1
                                 if_ongoing_start[callee[2]] = 1
@@ -1204,7 +1228,7 @@ def make_matrix_from_function_graph(function_graph):
                             else:
                                 print_error_for_make_function('IF_CONTROL error1')
                         else:   #end_info
-                            print('before',prev_callee_list)
+                            #print('before',prev_callee_list)
                             if control_flow_end == 1:
                                 control_flow_end = 0
                                 for temp_prev_callee in prev_callee_list:
@@ -1227,7 +1251,7 @@ def make_matrix_from_function_graph(function_graph):
 
                                             if function_not_in_list(temp_if_prev_start,prev_callee_list) == 0:
                                                 prev_callee_list.append(temp_if_prev_start)
-                            print('after',prev_callee_list)
+                            #print('after',prev_callee_list)
                         
                             
                             if_prev_start[callee[2]] = 0
@@ -1245,38 +1269,116 @@ def make_matrix_from_function_graph(function_graph):
                                     print('control flow is not if control!!')
                             else:
                                 print_error_for_make_function('control flow empty!!')
-                    """
-                    elif control_flow_retun_val == SWITCH_CONTROL:
+                    
+                    elif control_flow_return_val == SWITCH_CONTROL:
                         if callee[0] == 'start_info':
                             if callee[1] == 'switch':
+                                control_flow_list.append(control_flow_return_val)
                                 switch_prev_start[callee[2]] = 1
                                 case_ongoing_start[callee[2]] = 1
                                 switch_ongoing_start[callee[2]] = 1
                                 for temp_prev_callee in prev_callee_list:
                                     switch_prev_start_list[callee[2]].append(temp_prev_callee)
                                 switch_ongoing_start_level_list.append(callee[2])
+                                prev_callee_list.clear()
+                                for temp_switch_prev_start in switch_prev_start_list[callee[2]]:
+                                    prev_callee_list.append(temp_switch_prev_start)
                             elif callee[1] == 'case':
                                 if switch_function_in_list[callee[2]] == 0:
                                     switch_function_in_final_list[callee[2]] = 1
                                 switch_function_in_list[callee[2]] = 0
                                 case_ongoing_start[callee[2]] = 1
+                                if control_flow_end == 1:
+                                    control_flow_end = 0
+                                    for temp_prev_callee in prev_callee_list:
+                                        switch_ongoing_start_list[callee[2]].append(temp_prev_callee)
+                                prev_callee_list.clear()
+                                for temp_switch_prev_start in switch_prev_start_list[callee[2]]:
+                                    prev_callee_list.append(temp_switch_prev_start)
                             elif callee[1] == 'default':
                                 if switch_function_in_list[callee[2]] == 0:
                                     switch_function_in_final_list[callee[2]] = 1
                                 switch_function_in_list[callee[2]] = 0
                                 case_ongoing_start[callee[2]] = 1
                                 default_ongoing_start[callee[2]] = 1
+                                if control_flow_end == 1:
+                                    control_flow_end = 0
+                                    for temp_prev_callee in prev_callee_list:
+                                        switch_ongoing_start_list[callee[2]].append(temp_prev_callee)
+                                prev_callee_list.clear()
+                                for temp_switch_prev_start in switch_prev_start_list[callee[2]]:
+                                    prev_callee_list.append(temp_switch_prev_start)
                             else:
                                 print_error_for_make_function('switch control error1')
                         else:
+                            #print('before',prev_callee_list)
+                            if control_flow_end == 1:
+                                control_flow_end = 0
+                                for temp_prev_callee in prev_callee_list:
+                                    switch_ongoing_start_list[callee[2]].append(temp_prev_callee)
+                            prev_callee_list.clear()
+                            if switch_ongoing_start_list[callee[2]]: #if문 끝났는데 else if가 남아있다면
+                                for temp_prev_callee in switch_ongoing_start_list[callee[2]]:
+                                    if function_not_in_list(temp_prev_callee,prev_callee_list) == 0:
+                                        prev_callee_list.append(temp_prev_callee)
+                                switch_ongoing_start_list[callee[2]].clear()
+                            if default_ongoing_start[callee[2]] == 0:
+                                if switch_prev_start_list[callee[2]]:
+                                    for temp_switch_prev_start in switch_prev_start_list[callee[2]]:
+                                        if function_not_in_list(temp_switch_prev_start,prev_callee_list) == 0:
+                                            prev_callee_list.append(temp_switch_prev_start)
+                            else:
+                                if switch_function_in_list[callee[2]] != 1 or switch_function_in_final_list[callee[2]] != 0:
+                                    if switch_prev_start_list[callee[2]]:
+                                        for temp_switch_prev_start in switch_prev_start_list[callee[2]]:
+                                            if function_not_in_list(temp_switch_prev_start,prev_callee_list) == 0:
+                                                prev_callee_list.append(temp_switch_prev_start)
+                            #print('after',prev_callee_list)
+                        
+                            
+                            switch_prev_start[callee[2]] = 0
+                            switch_ongoing_start[callee[2]] = 0
+                            case_ongoing_start[callee[2]] = 0
+                            switch_function_in_list[callee[2]] = 0
+                            switch_function_in_final_list[callee[2]] = 0
+                            default_ongoing_start[callee[2]] = 0
+                            switch_prev_start_list[callee[2]].clear()
+                            switch_ongoing_start_list[callee[2]].clear()
+                            switch_ongoing_start_level_list.pop()
+                            if control_flow_list:
+                                control_flow_end = 1
+                                if control_flow_list.pop() != SWITCH_CONTROL:
+                                    print('control flow is not switch control!!')
+                            else:
+                                print_error_for_make_function('control flow empty!!')
+                    
+                    elif control_flow_return_val == WHILE_CONTROL:
+                        if callee[0] == 'start_info':
+                            if callee[1] == 'for' or callee[1] == 'while':
+                                #control_flow_start_function_list.append([])
+                                #control_flow_end_function_list.append([])
+                                control_flow_list.append(control_flow_return_val)
+                                if_prev_start[callee[2]] = 1
+                                else_if_ongoing_start[callee[2]] = 1
+                                if_ongoing_start[callee[2]] = 1
+                                for temp_prev_callee in prev_callee_list:
+                                    if_prev_start_list[callee[2]].append(temp_prev_callee)
+                                if_ongoing_start_level_list.append(callee[2])
+                                prev_callee_list.clear()        #일관성을 위해서
+                                for temp_if_prev_start in if_prev_start_list[callee[2]]:
+                                    prev_callee_list.append(temp_if_prev_start)
+                            else:
+                                print_error_for_make_function('WHILE_CONTROL error1')
+                        else:
                             print('hi')
-                        """
+
+
 
                         
 
                 #for while 체크
                     
-                #do while문 체크
+                                    #do while문 체크
 
                 #switch 체크
 
