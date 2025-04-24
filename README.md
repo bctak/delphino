@@ -27,10 +27,16 @@ pip install graphviz
 
 ```
 cd C_static_analysis/src/
-python3 static_analysis.py [c source code name]
+python3 static_analysis.py [-g] [c source code name]
 ```
+The -g option visually converts the call graph and generates it as a PDF file.
+- A PDF file is generated for each user-defined function in the C code, including main. However, if a function does not contain any calls to other functions, no PDF file is created for it.
 
-Pass the filename of the C code to be analyzed as the first argument. As a result, a call graph of glibc functions used in the C code will be displayed.
+##### Example
+```
+cd C_static_analysis/example/
+python3 static_analysis.py -g simple_test.c
+```
 
 #### 2. Program that converts glibc functions to system calls.
 
