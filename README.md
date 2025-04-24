@@ -14,6 +14,13 @@ sudo apt update
 sudo apt install clang
 ```
 
+- **graphviz:** Graphviz must be installed in order to generate the graph.
+```
+sudo apt update
+sudo apt install python3-pip
+pip install graphviz
+```
+
 ### Usage
 
 #### 1. Static analysis program ( not completed )
