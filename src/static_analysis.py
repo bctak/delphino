@@ -2,7 +2,8 @@ import subprocess
 import re
 import sys
 import os
-
+from graphviz import Digraph
+import argparse
 #control constant
 NORMAL_CONTROL = 0
 IF_CONTROL = 0b1
@@ -12,7 +13,7 @@ DO_WHILE_CONTROL = 0b1000
 BREAK_CONTROL = 0b10000
 CONTINUE_CONTROL = 0b100000
 
-
+FOR_DEVELOPMENT = 0
 
 def get_glibc_functions():
     """Get a list of all symbols provided by glibc, including all symbol types."""
@@ -224,6 +225,43 @@ def extract_glibc_functions_from_c_code(file_path):
 
 def make_function_call_sequence(function_calls_sequence,):
     print('hi')
+
+def make_graph_using_gui(call_graph_matrix_list,call_graph_function_pos_list,caller_list):
+    if len(call_graph_matrix_list) == len(call_graph_function_pos_list) and len(call_graph_function_pos_list) == len(caller_list):
+        for i in range(0,len(call_graph_function_pos_list)):
+            call_graph_matrix = call_graph_matrix_list[i]
+            call_graph_function_pos = call_graph_function_pos_list[i]
+            caller = caller_list[i]
+            adj_matrix = []
+            node_names = []
+            
+            for function_name, function_call_matrix in call_graph_matrix[caller].items():
+                node_names.append(function_name)
+                adj_matrix.append(function_call_matrix)
+
+            # Graphviz 그래프 생성
+            dot = Digraph(format='pdf')
+            dot.attr(rankdir='LR', size='8,5')  # 좌→우 방향, 크기 조정
+
+            # 노드 추가
+            for name in node_names:
+                dot.node(name, shape='ellipse', style='filled', fillcolor='lightblue')
+
+            # 엣지 추가
+            num_nodes = len(adj_matrix)
+            for i in range(num_nodes):
+                for j in range(num_nodes):
+                    if adj_matrix[i][j] != 0:
+                        dot.edge(node_names[i], node_names[j])
+
+            # PDF 파일로 저장
+            dot.render(str(caller), cleanup=True)  # graphviz_graph.pdf 생성
+    else:
+        print_error_for_make_function('length error')
+    
+
+
+
 
 def extract_if_depth(file_path):
     """Extract the function call graph from a C source file using Clang AST dump."""
@@ -1124,13 +1162,17 @@ def make_matrix_from_function_graph(function_graph):
     call_graph_function_pos = {}
     call_graph_function_start  = {}
     call_graph_function_end = {}
+    call_graph_matrix_list = []
+    call_graph_function_pos_list = []
+    caller_list = []
     for caller, callees in function_graph.items():
         call_graph_matrix[caller] = {}
         call_graph_function_pos[caller] = {}
         call_graph_function_start[caller] = []
         call_graph_function_end[caller] = []
         if callees:
-            print(caller)
+            if FOR_DEVELOPMENT == 1:
+                print(caller)
             function_set = set([])
             function_set.add('start_callee!')
             for callee in callees:
@@ -1705,7 +1747,11 @@ def make_matrix_from_function_graph(function_graph):
                 if item:
                     print('if_ongoing_start_level_list',item)        
             """
-            print_matrix(call_graph_matrix,call_graph_function_pos,caller)
+            if FOR_DEVELOPMENT == 1:
+                print_matrix(call_graph_matrix,call_graph_function_pos,caller)
+            call_graph_matrix_list.append(call_graph_matrix.copy())
+            call_graph_function_pos_list.append(call_graph_function_pos.copy())
+            caller_list.append(caller)
             """
             for function_name, function_call_matrix in call_graph_matrix[caller].items():
                 temp_connect_list = []
@@ -1715,6 +1761,7 @@ def make_matrix_from_function_graph(function_graph):
                         temp_connect_list.append(temp_function_pos[temp_index])
                 print(function_name,temp_connect_list)
             """
+    return     call_graph_matrix_list, call_graph_function_pos_list, caller_list
                 
 
 def print_call_graph(function_graph):
@@ -1736,46 +1783,23 @@ def print_call_graph(function_graph):
     print("Function Call Graph Lengh: "+str(call_length))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print('Usage: python3 '+ sys.argv[0] +' <C_FILE>')
-        sys.exit(1)
-    
-    c_file = sys.argv[1]  # Get file from command-line argument
-    
+    parser = argparse.ArgumentParser(description="C file analyzer with optional graph generation.")
+    parser.add_argument("c_file", help="Path to the C source file")
+    parser.add_argument("-g", "--graph", action="store_true", help="Generate graph from adjacency matrix")
+
+    args = parser.parse_args()
+
+    c_file = args.c_file
+    make_graph = args.graph
+
     if not os.path.isfile(c_file):
         print(f"Error: File '{c_file}' not found.")
-        sys.exit(1)
-    """
-    function_workflow = extract_function_workflow(c_file)
+        exit(1)
 
-    print("Function Workflow (Directed Edges):")
-    for edge in function_workflow:
-        print(f"{edge[0]} -> {edge[1]}")
-    
-    glibc_calls = extract_glibc_functions_from_c_code(c_file)
-    print("Glibc functions used in the code:")
-    for func in sorted(glibc_calls):
-        print(func)
-    """
-    """
-    function_graph = extract_function_call_graph_old(c_file)
-
-    print("Function Call Graph Old:")
-    call_length = 0
-    for caller, callees in function_graph.items():
-        if callees:
-            for callee in callees:
-                print(f"{caller} -> {callee[0],callee[1],callee[2]}")
-                call_length += 1
-        else:
-            print(f"{caller} -> (끝)")
-    print("Function Call Graph Old Lengh: "+str(call_length))
-
-    #function_graph = extract_function_call_graph(c_file)
-    """
-    
     function_graph = extract_if_depth(c_file)
     print_call_graph(function_graph)
-    make_matrix_from_function_graph(function_graph)
+    call_graph_matrix_list, call_graph_function_pos_list, caller_list = make_matrix_from_function_graph(function_graph)
 
+    if make_graph:
+        make_graph_using_gui(call_graph_matrix_list,call_graph_function_pos_list,caller_list)
 
