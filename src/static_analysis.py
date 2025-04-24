@@ -1171,14 +1171,17 @@ def make_matrix_from_function_graph(function_graph):
         call_graph_function_start[caller] = []
         call_graph_function_end[caller] = []
         if callees:
-            if FOR_DEVELOPMENT == 1:
-                print(caller)
             function_set = set([])
-            function_set.add('start_callee!')
+            function_set.add('start lambda function')
+            function_set.add('end lambda function')
             for callee in callees:
                 if control_flow_check(callee) == NORMAL_CONTROL:
                     function_set.add(callee[-1])
             index = 0
+            if len(function_set) == 2:
+                continue
+            if FOR_DEVELOPMENT == 1:
+                print(caller)
             for function_name in function_set:
                 call_graph_matrix[caller][function_name] = [0]*len(function_set)
                 call_graph_function_pos[caller][function_name] = index
@@ -1188,9 +1191,11 @@ def make_matrix_from_function_graph(function_graph):
             #print(call_graph_function_pos[caller])
             #기본 matrix 및 함수당 인덱스 매핑 완료
 
-            prev_callee = (0,0,0,0,0,0,0,0,0,0,0,0,0,0,'start_callee!')
+            prev_callee = (0,0,0,0,0,0,0,0,0,0,0,0,0,0,'start lambda function')
             prev_callee_list = []
             prev_callee_list.append(prev_callee)
+            end_callee = (0,0,0,0,0,0,0,0,0,0,0,0,0,0,'end lambda function')
+            callees.append(end_callee)
             start_make_matrix = 0
             for_prev_start = [[] for _ in range(100)] #for, while문 시작직전 함수 담는 스택
             for_after_start = [[] for _ in range(100)] #for, while문 시작직후 함수 담는 스택
