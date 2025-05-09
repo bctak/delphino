@@ -73,6 +73,99 @@ def extract_function_calls_with_clang(file_path):
     except Exception as e:
         print(f"Error parsing C code with Clang: {e}")
         return set()
+    
+def calls_library_function(func_name, user_functions, function_calls, visited):
+    """
+    Returns True if func_name (or anything it transitively calls) calls any library function.
+    """
+    if func_name not in function_calls:
+        # 함수 호출 내역이 없다면 라이브러리 호출도 없는 것으로 간주
+        return False
+    
+    if func_name in visited:
+        return False  # 이미 방문한 함수는 다시 검사하지 않음 (무한 루프 방지)
+
+    visited.add(func_name)
+
+    for callee in function_calls[func_name]:
+        if callee not in user_functions:
+            return True  # 라이브러리 함수 호출 발견
+        if calls_library_function(callee, user_functions, function_calls, visited):
+            return True  # 하위 호출 중 라이브러리 호출 발견
+
+    return False
+
+def extract_function_not_call_function(file_path):
+    """Extract the function call graph from a C source file using Clang AST dump."""
+    try:
+        result = subprocess.run(["clang", "-Xclang", "-ast-dump", "-fsyntax-only", file_path], 
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        # 본문 시작 위치 찾기
+        code_body_start = get_code_body_start(result.stdout, file_path)
+        if code_body_start is None:
+            print("Warning: Could not determine the code body start position.")
+            return {}
+
+        user_functions, all_functions = extract_function_calls_with_clang(file_path)  # 사용자 정의 함수 목록
+        function_calls = {}  # 호출 관계 저장 (caller -> [callee1, callee2, ...])
+        current_function = None  # 현재 분석 중인 함수
+
+        lines = result.stdout.split("\n")[code_body_start:]  # 본문 부분만 분석
+
+        for i in range(len(lines)):
+            line = lines[i]
+
+            # 현재 어떤 함수 내부인지 찾기 (FunctionDecl 사용)
+            if "FunctionDecl" in line:
+                match = re.search(r"FunctionDecl\s+[^\']+\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*'", line)
+                if match:
+                    current_function = match.group(1)
+                    if current_function in user_functions:
+                        function_calls[current_function] = []  # 함수 호출 그래프 초기화
+
+            # 함수 호출 찾기 (CallExpr -> DeclRefExpr 사용)
+            elif "CallExpr" in line and current_function:
+                call_depth = get_first_alpha_or_angle_index(line)
+                for j in range(i + 1, min(i + 20, len(lines))):  # CallExpr 이후 몇 줄 체크
+                    if "DeclRefExpr" in lines[j]:
+                        match = re.search(r"DeclRefExpr.*Function\s+0x[0-9a-f]+\s+'([a-zA-Z_][a-zA-Z0-9_]*)'", lines[j])
+                        if match:
+                            called_function = match.group(1)
+                            if called_function in all_functions or called_function in user_functions:  # 사용자 정의 함수만 추적
+                                function_calls[current_function].append(called_function)
+                            if "clone" == called_function:
+                                for k in range(j + 1, min(j + 20, len(lines))):  # CallExpr 이후 몇 줄 체크
+                                    if "DeclRefExpr" in lines[k]:
+                                        match2 = re.search(r"DeclRefExpr.*Function\s+0x[0-9a-f]+\s+'([a-zA-Z_][a-zA-Z0-9_]*)'", lines[k])
+                                        if match2:
+                                            cloned_function = match2.group(1)
+                                            if cloned_function in all_functions or cloned_function in user_functions:
+                                                function_calls[current_function].append(called_function)
+                                            break
+                            if "pthread_create" == called_function:
+                                for k in range(j + 1, min(j + 20, len(lines))):  # CallExpr 이후 몇 줄 체크
+                                    if "DeclRefExpr" in lines[k]:
+                                        match3 = re.search(r"DeclRefExpr.*Function\s+0x[0-9a-f]+\s+'([a-zA-Z_][a-zA-Z0-9_]*)'", lines[k])
+                                        if match3:
+                                            pthread_create_function = match3.group(1)
+                                            if pthread_create_function in all_functions or pthread_create_function in user_functions:
+                                                function_calls[current_function].append(called_function)
+                                            break
+                        break
+        
+        user_functions_not_call = set()
+
+        for user_func in user_functions:
+            visited = set()
+            if not calls_library_function(user_func, user_functions, function_calls, visited):
+                user_functions_not_call.add(user_func)
+        
+        print("사용자 함수 중 라이브러리 함수를 호출하지 않는 함수들:", user_functions_not_call)
+        return user_functions_not_call
+    except Exception as e:
+        print(f"Error extracting function call graph: {e}")
+        return {}
 
 def get_first_alpha_or_angle_index2(line):
     """Find the index of the first alphabetic character (A-Z, a-z) in a given line."""
@@ -258,6 +351,27 @@ def make_graph_using_gui(call_graph_matrix_list,call_graph_function_pos_list,cal
     else:
         print_error_for_make_function('length error')
     
+def make_graph_using_gui_use_list(adj_matrix_name,adj_matrix): 
+    node_names = adj_matrix_name
+    
+    # Graphviz 그래프 생성
+    dot = Digraph(format='pdf')
+    dot.attr(rankdir='TB', size='8,5')  # 좌→우 방향, 크기 조정
+
+    # 노드 추가
+    for name in node_names:
+        dot.node(name, shape='ellipse', style='filled', fillcolor='lightblue',penwidth='2.5')
+
+    # 엣지 추가
+    num_nodes = len(adj_matrix)
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if adj_matrix[i][j] != 0:
+                dot.edge(node_names[i], node_names[j])
+
+    # PDF 파일로 저장
+    dot.render(str('FINAL GRAPH'), cleanup=True)  # graphviz_graph.pdf 생성
+
 
 
 
@@ -792,7 +906,6 @@ def extract_if_depth(file_path):
                         #print(if_level_not_plus_list,if_level)
                         #print_for_debug(lines,i,20)
                         if if_level_not_plus_list[if_level] == 0:
-                            print('if_level up!!',if_level)
                             if_level += 1
                             function_calls[current_function].append(('start_info','if',if_level,if_new_check))
                             control_flow_list.append(IF_CONTROL)
@@ -954,7 +1067,7 @@ def extract_if_depth(file_path):
     
         #print(if_conditional_depth_list)
         #exit(0)
-        return function_calls
+        return function_calls,user_functions,all_functions
     except Exception as e:
         print(f"Error extracting function call graph: {e}")
         print(e)
@@ -1235,7 +1348,7 @@ def control_flow_skip_check(prev_control_flow_skip,control_flow_return_val, call
                     return_val = 0
             return return_val
     return prev_control_flow_skip
-def make_matrix_from_function_graph(function_graph):
+def make_matrix_from_function_graph(function_graph,function_not_call):
     call_graph_matrix = {}
     call_graph_function_pos = {}
     call_graph_function_start  = {}
@@ -1244,6 +1357,8 @@ def make_matrix_from_function_graph(function_graph):
     call_graph_function_pos_list = []
     caller_list = []
     for caller, callees in function_graph.items():
+        if caller in function_not_call:
+            continue
         call_graph_matrix[caller] = {}
         call_graph_function_pos[caller] = {}
         call_graph_function_start[caller] = []
@@ -1263,19 +1378,21 @@ def make_matrix_from_function_graph(function_graph):
             function_list.append('E')
             for callee in callees:
                 if control_flow_check(callee) == NORMAL_CONTROL:
-                    if function_not_in_list_use_function_name(callee,function_list) == 0:
-                        function_list.append(callee[-1])
-                    function_set.add(callee[-1])
+                    if callee[-1] not in function_not_call:
+                        if function_not_in_list_use_function_name(callee,function_list) == 0:
+                            function_list.append(callee[-1])
+                        function_set.add(callee[-1])
             index = 0
 
-            if len(function_list) == 102:
-                continue
+            #if len(function_list) == 102:
+            #    continue
             if FOR_DEVELOPMENT == 1:
                 print(caller)
             for function_name in function_list:
-                call_graph_matrix[caller][function_name] = [0]*len(function_list)
-                call_graph_function_pos[caller][function_name] = index
-                index += 1
+                if function_name not in function_not_call:
+                    call_graph_matrix[caller][function_name] = [0]*len(function_list)
+                    call_graph_function_pos[caller][function_name] = index
+                    index += 1
             #for function_name, function_call_matrix in call_graph_matrix[caller].items():
             #    print(function_name,function_call_matrix)
             #print(call_graph_function_pos[caller])
@@ -1395,6 +1512,8 @@ def make_matrix_from_function_graph(function_graph):
                         print('for Debug',callee)
                 if control_flow_return_val == NORMAL_CONTROL:
                     temp_for_second = 0
+                    if callee[-1] in function_not_call: #함수를 하나도 안호출하는 것은 애초에 제외
+                        continue
                     if not prev_callee_list:
                         print_error_for_make_function('prev_callee_list error1')
                     if control_flow_list:
@@ -2255,7 +2374,7 @@ def make_matrix_from_function_graph(function_graph):
                                             for temp_prev_callee in prev_callee_list:
                                                 if temp_prev_callee[11] >= control_flow_information_list[-1][3] and temp_prev_callee[11] <= callee[3]:  #같은 do_while문 내에서 발생한 것에 대해서만
                                                     do_while_ongoing_start_list[callee[2]].append(temp_prev_callee)
-                                    print(do_while_ongoing_end_list[callee[2]],prev_callee_list,'!!!!!!!!!')
+                                    #print(do_while_ongoing_end_list[callee[2]],prev_callee_list,'!!!!!!!!!')
                                     #print(do_while_ongoing_start_list[callee[2]],do_while_ongoing_end_list[callee[2]])
 
                                 #do_while conditional 부분에서는 control_flow가 나타날 가능성이 없으므로 0으로 초기화 하면 안될 수도 있다.
@@ -2515,24 +2634,170 @@ def print_call_graph(function_graph):
             print(f"{caller} -> (끝)")
     print("Function Call Graph Lengh: "+str(call_length))
 
+def merge_all_graphs(call_graph_matrix_list,call_graph_function_pos_list,caller_list,user_functions,all_functions):
+
+    user_functions_list = list(user_functions)
+    visited_dict = {}
+
+    call_graph_matrix_use_name = {}
+    for temp_index in range(0,len(call_graph_matrix_list)):
+        adj_matrix = call_graph_matrix_list[temp_index]
+        caller = caller_list[temp_index]
+        visited_dict[caller] = set([])
+        keys = list(adj_matrix.keys())
+
+        graph_dict = {}
+        for src, row in adj_matrix.items():
+            if src in ('S', 'E'):
+                continue
+            graph_dict[src] = [keys[i] for i, val in enumerate(row) if val == 1]
+
+        start_list = [keys[i] for i, val in enumerate(adj_matrix['S']) if val == 1]
+        start_set = set(start_list)
+        end_index = keys.index('E')
+        end_list = [src for src, row in adj_matrix.items() if row[end_index] == 1]
+        end_set = set(end_list)
+        call_graph_matrix_use_name[caller] = []
+        call_graph_matrix_use_name[caller].append(start_set)
+        call_graph_matrix_use_name[caller].append(end_set)
+        call_graph_matrix_use_name[caller].append(graph_dict)
+
+    #print(user_functions_list)
+    #print(all_functions)
+    call_graph_matrix_use_name_copy = {}
+    for function_name, temp_call_graph_matrix_use_name in call_graph_matrix_use_name.items():
+        user_func_check = 0
+        call_graph_matrix_use_name_copy[function_name] = []
+        call_graph_matrix_use_name_copy[function_name].append(temp_call_graph_matrix_use_name[0].copy())
+        call_graph_matrix_use_name_copy[function_name].append(temp_call_graph_matrix_use_name[1].copy())
+        call_graph_matrix_use_name_copy[function_name].append(temp_call_graph_matrix_use_name[2].copy())
+
+        temp_end_set = set([])
+        visited_dict[function_name] = set([])
+        while True:
+            temp_start_set = set([])
+            for func in call_graph_matrix_use_name_copy[function_name][0]:
+                if func in visited_dict[function_name]:
+                    continue
+                if func in user_functions_list:
+                    temp_start_set = temp_start_set.union(call_graph_matrix_use_name[func][0])
+                else:
+                    temp_start_set.add(func)
+                visited_dict[function_name].add(func)
+            if temp_start_set == call_graph_matrix_use_name_copy[function_name][0]:
+                break
+            call_graph_matrix_use_name_copy[function_name][0] = temp_start_set.copy()
+        
+        visited_dict[function_name] = set([])
+        while True:
+            temp_end_set = set([])
+            for func in call_graph_matrix_use_name_copy[function_name][1]:
+                if func in visited_dict[function_name]:
+                    continue
+                if func in user_functions_list:
+                    temp_end_set = temp_end_set.union(call_graph_matrix_use_name[func][1])
+                    visited_dict[function_name].add(func)
+                else:
+                    temp_end_set.add(func)
+            if temp_end_set == call_graph_matrix_use_name_copy[function_name][1]:
+                break
+            call_graph_matrix_use_name_copy[function_name][1] = temp_end_set.copy()
+
+    for function_name, temp_call_graph_matrix_use_name in call_graph_matrix_use_name.items():
+        for src,dst in temp_call_graph_matrix_use_name[2].items():
+            temp_set = set([])
+            for func in dst:
+                if func == 'E':
+                    continue
+                if func in user_functions_list:
+                    temp_set = temp_set.union(call_graph_matrix_use_name_copy[func][0])
+                else:
+                    temp_set.add(func)
+            call_graph_matrix_use_name_copy[function_name][2][src] = temp_set.copy()
+
+    
+
+    #for function_name, temp_call_graph_matrix_use_name in call_graph_matrix_use_name.items():
+    #    print('before')
+    #    print(function_name,call_graph_matrix_use_name[function_name][0],call_graph_matrix_use_name[function_name][1],call_graph_matrix_use_name[function_name][2])
+    #    print('after')
+    #    print(function_name,call_graph_matrix_use_name_copy[function_name][0],call_graph_matrix_use_name_copy[function_name][1],call_graph_matrix_use_name_copy[function_name][2])
+    
+
+    
+    #for function_name, temp_call_graph_matrix_use_name in call_graph_matrix_use_name.items():
+    #    print('before')
+    #    print(function_name,call_graph_matrix_use_name[function_name][0],call_graph_matrix_use_name[function_name][1])
+    #    print('after')
+    #    print(function_name,call_graph_matrix_use_name_copy[function_name][0],call_graph_matrix_use_name_copy[function_name][1])
+    
+    #각 함수의 진입점, 종착점 사용자 함수를 전부 libc함수로 변경완료
+
+    #print(call_graph_matrix)
+    call_functions = all_functions - user_functions
+    user_functions_list = list(user_functions)
+    call_functions_list = list(call_functions)
+    visited_list = [0] * len(user_functions)
+    visited_list_name = user_functions_list.copy()
+    user_functions_start = []
+    user_functions_end = []
+    merged_call_graph_matrix = []
+    merged_call_graph_matrix_name = []
+    merged_call_graph_matrix_pos = {}          #이름으로 번호
+    merged_call_graph_matrix_pos_revert = {}   #번호로 이름
+    for temp_all_function_name in call_functions_list:
+        merged_call_graph_matrix.append([0] * len(call_functions_list))
+        merged_call_graph_matrix_name.append(temp_all_function_name)
+    for temp_index in range(0,len(merged_call_graph_matrix_name)):
+        merged_call_graph_matrix_pos[merged_call_graph_matrix_name[temp_index]] = temp_index
+        merged_call_graph_matrix_pos_revert[temp_index] = merged_call_graph_matrix_name[temp_index]
+
+    for function_name, temp_call_graph_matrix_use_name_copy in call_graph_matrix_use_name_copy.items():
+        #print(function_name,temp_call_graph_matrix_use_name_copy)
+        for src, dst in temp_call_graph_matrix_use_name_copy[2].items():
+            if src in user_functions_list:
+                for temp_src in call_graph_matrix_use_name_copy[src][1]:
+                    for temp_dst in dst:
+                        merged_call_graph_matrix[merged_call_graph_matrix_pos[temp_src]][merged_call_graph_matrix_pos[temp_dst]] = 1
+            else:
+                for temp_dst in dst:
+                    merged_call_graph_matrix[merged_call_graph_matrix_pos[src]][merged_call_graph_matrix_pos[temp_dst]] = 1
+    #for temp_index in range(0,len(merged_call_graph_matrix_name)):
+    #    print(merged_call_graph_matrix_name[temp_index],merged_call_graph_matrix[temp_index])
+    make_graph_using_gui_use_list(merged_call_graph_matrix_name,merged_call_graph_matrix)
+    #print(merged_call_graph_matrix,merged_call_graph_matrix_name)
+    #print(merged_call_graph_matrix_pos)
+    #print(len(merged_call_graph_matrix_pos),len(merged_call_graph_matrix),len(merged_call_graph_matrix_name))
+    #print(visited_list,visited_list_name)
+    
+    
+    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="C file analyzer with optional graph generation.")
     parser.add_argument("c_file", help="Path to the C source file")
     parser.add_argument("-g", "--graph", action="store_true", help="Generate graph from adjacency matrix")
+    parser.add_argument("-m", "--merge", action="store_true", help="Merge all function graphs into a single graph")
+
 
     args = parser.parse_args()
 
     c_file = args.c_file
     make_graph = args.graph
+    merge_graph = args.merge 
 
     if not os.path.isfile(c_file):
         print(f"Error: File '{c_file}' not found.")
         exit(1)
 
-    function_graph = extract_if_depth(c_file)
+
+    function_graph, user_functions, all_functions = extract_if_depth(c_file)
+    function_not_call = extract_function_not_call_function(c_file)
     print_call_graph(function_graph)
-    call_graph_matrix_list, call_graph_function_pos_list, caller_list = make_matrix_from_function_graph(function_graph)
+    call_graph_matrix_list, call_graph_function_pos_list, caller_list = make_matrix_from_function_graph(function_graph,function_not_call)
 
     if make_graph:
         make_graph_using_gui(call_graph_matrix_list,call_graph_function_pos_list,caller_list)
+    if merge_graph:
+        merge_all_graphs(call_graph_matrix_list, call_graph_function_pos_list, caller_list, user_functions, all_functions)
 
