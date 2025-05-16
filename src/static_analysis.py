@@ -1007,6 +1007,9 @@ def extract_if_depth(file_path):
                 return_ongoing_depth_list.append(temp_return_ongoing_depth)
                 control_flow_list.append(RETURN_CONTROL)
 
+            if "GotoStmt" in line:
+                print_error('goto detect',lines,i)
+
             # 현재 어떤 함수 내부인지 찾기 (FunctionDecl 사용)
             if "FunctionDecl" in line:
                 match = re.search(r"FunctionDecl\s+[^\']+\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*'", line)
