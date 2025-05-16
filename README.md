@@ -38,7 +38,7 @@ The -m option generates a single graph that combines all function call flows in 
 ##### Example
 ```
 cd C_static_analysis/example/
-python3 static_analysis.py -g simple_test.c
+python3 static_analysis.py -m simple_test.c
 ```
 
 #### 2. Program that converts glibc functions to system calls.
