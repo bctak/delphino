@@ -27,10 +27,13 @@ pip install graphviz
 
 ```
 cd C_static_analysis/src/
-python3 static_analysis.py [-g] [c source code name]
+python3 static_analysis.py [-g] [-m] [c source code name]
 ```
 The -g option visually converts the call graph and generates it as a PDF file.
 - A PDF file is generated for each user-defined function in the C code, including main. However, if a function does not contain any calls to other functions, no PDF file is created for it.
+
+The -m option generates a single graph that combines all function call flows in the code and outputs it as a PDF file.
+- Creates a single PDF graph that visualizes all function call flows within one code file.
 
 ##### Example
 ```
