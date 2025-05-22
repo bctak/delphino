@@ -41,7 +41,7 @@ If you use the -o option along with a file name, you can specify the output file
 ##### Example
 ```
 cd C_static_analysis/example/
-python3 static_analysis.py -m simple_test.c
+python3 static_analysis.py -m simple_test.c -o simple_test_graph
 ```
 
 #### 2. Program that converts glibc functions to system calls.
