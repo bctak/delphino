@@ -17,7 +17,7 @@ BREAK_CONTROL = 0b100000
 CONTINUE_CONTROL = 0b1000000
 RETURN_CONTROL = 0b10000000
 
-FOR_DEVELOPMENT = 0
+FOR_DEVELOPMENT = 1
 
 MAX_SINGLE_CONTROL_FLOW_COUNT = 100
 
@@ -1781,15 +1781,16 @@ def make_matrix_from_function_graph(function_graph,function_not_call):
                                                             while_ongoing_start_list[callee[2]].append(temp_prev_callee)
 
                                     # If both start and end points of the while loop exist, connect them
-                                    if while_ongoing_start_list[callee[2]] and while_ongoing_end_list[callee[2]]:
-                                        make_connect(call_graph_matrix,call_graph_function_pos,caller,while_ongoing_end_list[callee[2]],while_ongoing_start_list[callee[2]][0])
-                                    elif not while_ongoing_start_list[callee[2]] and not while_ongoing_end_list[callee[2]]:
-                                        if while_working_list[callee[2]] == 1:
-                                            print_error_for_make_function('while control working error2')
-                                    # If only one of start/end exists, it's also a structural error
-                                    else:
-                                        print(while_ongoing_start_list[callee[2]],while_ongoing_end_list[callee[2]],while_working_list[callee[2]])
-                                        print_error_for_make_function('while control working error3')
+                                    if iteration_ongoing_break[callee[2]] == 0:
+                                        if while_ongoing_start_list[callee[2]] and while_ongoing_end_list[callee[2]]:
+                                            make_connect(call_graph_matrix,call_graph_function_pos,caller,while_ongoing_end_list[callee[2]],while_ongoing_start_list[callee[2]][0])
+                                        elif not while_ongoing_start_list[callee[2]] and not while_ongoing_end_list[callee[2]]:
+                                            if while_working_list[callee[2]] == 1:
+                                                print_error_for_make_function('while control working error2')
+                                        # If only one of start/end exists, it's also a structural error
+                                        else:
+                                            print(while_ongoing_start_list[callee[2]],while_ongoing_end_list[callee[2]],while_working_list[callee[2]])
+                                            print_error_for_make_function('while control working error3')                                       
                                     # If a 'continue' statement exists, connect it to the beginning of the while loop
                                     if iteration_continue_list[callee[2]]:
                                         for temp_iteration_continue in iteration_continue_list[callee[2]]:
@@ -1924,50 +1925,89 @@ def make_matrix_from_function_graph(function_graph,function_not_call):
                                                 make_connect(call_graph_matrix,call_graph_function_pos,caller,temp_iteration_continue,for_first_conditional_list[callee[2]][0])
                                             
                                     prev_callee_list.clear()
-                                    if for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
-                                        if len(for_second_conditional_list[callee[2]]) > 1:
-                                            for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
-                                                prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
-                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                    if iteration_ongoing_break[callee[2]] == 0:
+                                        if for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
+                                            if len(for_second_conditional_list[callee[2]]) > 1:
+                                                for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
+                                                    prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                                    prev_callee_list.clear()
+                                            if for_ongoing_end_list[callee[2]] and for_ongoing_start_list[callee[2]]:
+                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_second_conditional_list[callee[2]][0])
                                                 prev_callee_list.clear()
-                                        if for_ongoing_end_list[callee[2]] and for_ongoing_start_list[callee[2]]:
-                                            make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_second_conditional_list[callee[2]][0])
-                                            prev_callee_list.clear()
-                                            prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
-                                            make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_first_conditional_list[callee[2]][0])
-                                            prev_callee_list.clear()
-                                        else:
-                                            print_error_for_make_function('for_first & for_second error')
-                                    elif for_first_conditional_list[callee[2]] and not for_second_conditional_list[callee[2]]:
-                                        if for_ongoing_end_list[callee[2]] and for_ongoing_start_list[callee[2]]:
-                                            make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_first_conditional_list[callee[2]][0])
-                                        else:
-                                            print_error_for_make_function('for_first & for_second error2')
-                                    elif not for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
-                                        if len(for_second_conditional_list[callee[2]]) > 1:
-                                            for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
-                                                prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
-                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                                prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
+                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_first_conditional_list[callee[2]][0])
                                                 prev_callee_list.clear()
-                                        if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
-                                            make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_second_conditional_list[callee[2]][0])
-                                            prev_callee_list.clear()
-                                            prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
-                                            for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
-                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,temp_for_ongoing_start)
-                                            prev_callee_list.clear()
-                                        elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
-                                            print_error_for_make_function('for_first & for_second error3')
-                                    elif not for_first_conditional_list[callee[2]] and not for_second_conditional_list[callee[2]]:
-                                        if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
-                                            for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
-                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],temp_for_ongoing_start)
-                                            prev_callee_list.clear()
-                                        elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
-                                            print_error_for_make_function('for_first & for_second error4')
-                                        else:
-                                            if while_working_list[callee[2]] == 1:
-                                                print_error_for_make_function('for_first & for_second error5')
+                                            else:
+                                                print_error_for_make_function('for_first & for_second error')
+                                        elif for_first_conditional_list[callee[2]] and not for_second_conditional_list[callee[2]]:
+                                            if for_ongoing_end_list[callee[2]] and for_ongoing_start_list[callee[2]]:
+                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_first_conditional_list[callee[2]][0])
+                                            else:
+                                                print_error_for_make_function('for_first & for_second error2')
+                                        elif not for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
+                                            if len(for_second_conditional_list[callee[2]]) > 1:
+                                                for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
+                                                    prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                                    prev_callee_list.clear()
+                                            if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
+                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],for_second_conditional_list[callee[2]][0])
+                                                prev_callee_list.clear()
+                                                prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
+                                                for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,temp_for_ongoing_start)
+                                                prev_callee_list.clear()
+                                            elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
+                                                print_error_for_make_function('for_first & for_second error3')
+                                        elif not for_first_conditional_list[callee[2]] and not for_second_conditional_list[callee[2]]:
+                                            if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
+                                                for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],temp_for_ongoing_start)
+                                                prev_callee_list.clear()
+                                            elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
+                                                print_error_for_make_function('for_first & for_second error4')
+                                            else:
+                                                if while_working_list[callee[2]] == 1:
+                                                    print_error_for_make_function('for_first & for_second error5')
+                                    elif iteration_continue_list[callee[2]]:
+                                        if for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
+                                            if len(for_second_conditional_list[callee[2]]) > 1:
+                                                for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
+                                                    prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                                    prev_callee_list.clear()
+                                            if for_ongoing_end_list[callee[2]] and for_ongoing_start_list[callee[2]]:
+                                                prev_callee_list.clear()
+                                                prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
+                                                make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_first_conditional_list[callee[2]][0])
+                                                prev_callee_list.clear()
+                                            else:
+                                                print_error_for_make_function('for_first & for_second error11')
+                                        elif not for_first_conditional_list[callee[2]] and for_second_conditional_list[callee[2]]:
+                                            if len(for_second_conditional_list[callee[2]]) > 1:
+                                                for temp_index in range(0,len(for_second_conditional_list[callee[2]])-1):
+                                                    prev_callee_list.append(for_second_conditional_list[callee[2]][temp_index])
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,for_second_conditional_list[callee[2]][temp_index+1])
+                                                    prev_callee_list.clear()
+                                            if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
+                                                prev_callee_list.clear()
+                                                prev_callee_list.append(for_second_conditional_list[callee[2]][-1])
+                                                for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,prev_callee_list,temp_for_ongoing_start)
+                                                prev_callee_list.clear()
+                                            elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
+                                                print_error_for_make_function('for_first & for_second error12')
+                                        elif not for_first_conditional_list[callee[2]] and not for_second_conditional_list[callee[2]]:
+                                            if for_ongoing_start_list[callee[2]] and for_ongoing_end_list[callee[2]]:
+                                                for temp_for_ongoing_start in for_ongoing_start_list[callee[2]]:
+                                                    make_connect(call_graph_matrix,call_graph_function_pos,caller,for_ongoing_end_list[callee[2]],temp_for_ongoing_start)
+                                                prev_callee_list.clear()
+                                            elif for_ongoing_start_list[callee[2]] or for_ongoing_end_list[callee[2]]:
+                                                print_error_for_make_function('for_first & for_second error13')
+                                            else:
+                                                if while_working_list[callee[2]] == 1:
+                                                    print_error_for_make_function('for_first & for_second error14')
                                     
                                     iteration_lambda_function_name = control_flow_iteration_lambda_function[control_flow_iteration_lambda_function_pos]
                                     input_to_iteration_lambda_list = []
@@ -2118,6 +2158,14 @@ def make_matrix_from_function_graph(function_graph,function_not_call):
                                                     if temp_prev_callee[11] >= control_flow_information_list[-1][3] and temp_prev_callee[11] <= callee[3]:  # Only for what occurs within the same do_while statement
                                                         do_while_ongoing_start_list[callee[2]].append(temp_prev_callee)
                                     # Since control_flow is unlikely to occur in the do_while conditional part, it should not be initialized to 0.
+                                    if do_while_ongoing_break[callee[2]] == 1 and do_while_continue_list[callee[2]]:
+                                        prev_callee_list.clear()
+                                        for temp_do_while_continue_list in do_while_continue_list[callee[2]]:
+                                            for temp_do_while_continue in temp_do_while_continue_list:
+                                                if function_not_in_list(temp_do_while_continue,prev_callee_list) == 0:
+                                                    prev_callee_list.append(temp_do_while_continue)
+                                    elif do_while_ongoing_break[callee[2]] == 1:
+                                        print_error_for_make_function('do_while_ongoing_break error1')
                                 else:
                                     print_error_for_make_function('do_while control error')
                             else:
@@ -2258,10 +2306,16 @@ def make_matrix_from_function_graph(function_graph,function_not_call):
                                     elif control_flow_list[temp_index] == DO_WHILE_CONTROL:
                                         do_while_break_list[control_flow_information_list[temp_index][2]].append(prev_callee_list.copy())
                                         break_check = 1
-                                        if temp_index == len(control_flow_list) - 1:
-                                            do_while_ongoing_break[control_flow_information_list[temp_index][2]] = 1
-                                            control_flow_skip_list.append((DO_WHILE_CONTROL,control_flow_information_list[temp_index],'break'))
-                                            control_flow_skip = 1
+                                        if not do_while_continue_list[control_flow_information_list[temp_index][2]]:
+                                            if temp_index == len(control_flow_list) - 1:
+                                                do_while_ongoing_break[control_flow_information_list[temp_index][2]] = 1
+                                                control_flow_skip_list.append((DO_WHILE_CONTROL,control_flow_information_list[temp_index],'break'))
+                                                control_flow_skip = 1
+                                        else:
+                                            if temp_index == len(control_flow_list) - 1:
+                                                do_while_ongoing_break[control_flow_information_list[temp_index][2]] = 1
+                                                control_flow_skip_list.append((DO_WHILE_CONTROL,control_flow_information_list[temp_index],'continue'))
+                                                control_flow_skip = 1
                                         break
                                     elif control_flow_list[temp_index] == SWITCH_CONTROL:
                                         switch_break_list[control_flow_information_list[temp_index][2]].append(prev_callee_list.copy())
@@ -2326,7 +2380,6 @@ def make_matrix_from_function_graph(function_graph,function_not_call):
                         del call_graph_function_pos[caller][temp_lambda_function_name]
                     for temp_function_name, temp_graph_list in call_graph_matrix[caller].items():
                         del temp_graph_list[:MAX_SINGLE_CONTROL_FLOW_COUNT]
-
                 if while_check == 0:
                     if call_graph_matrix[caller]['S'][call_graph_function_pos[caller]['E']-MAX_SINGLE_CONTROL_FLOW_COUNT] == 1:
                         not_call_function_set.add(caller)
