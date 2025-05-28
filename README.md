@@ -23,7 +23,7 @@ pip install graphviz
 
 ### Usage
 
-#### 1. Static analysis program ( not completed )
+#### 1. Static analysis program
 
 ```
 cd C_static_analysis/src/
