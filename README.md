@@ -1,4 +1,4 @@
-# C_static_analysis
+# delphino: C_static_analysis
 
 # The project to analyze C code and extract system calls used by the program
 ## Overview
